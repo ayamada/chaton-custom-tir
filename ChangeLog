@@ -1,0 +1,401 @@
+2010-08-31  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.scm (chaton-alist->stree): Render nested lists in the value
+	  of the map as an array in json mode.
+	* chaton-viewer: Changed API to recognize "s=0" as a jsom mode which
+	  returns the same info as Sexpr mode.  The default (missing 's')
+	  behavior is a special format just for web interface.
+	  THIS IS AN INCOMPATIBLE CHANGE: It breaks a client that sends
+	  's' parameter with a value other than 1 and expects Sexpr.
+	  Clients using chaton.client module won't break, for the module
+	  already sends '1'.
+
+	* chaton-apilogin: Allow returning result in json if "s=0" parameter
+	  is given.
+	* tests/apilogin.scm, tests/Makefile: Added apilogin test.
+
+2010-06-07  Shiro Kawai  <shiro@acm.org>
+
+	* client/examples/chaton-twitter: Switched from Basic authentication
+	  to OAuth to access Twitter.  Requires Gauche-net-twitter package.
+
+2010-04-12  Shiro Kawai  <shiro@acm.org>
+
+	* client/examples/chaton-twitter (kick-reply-watcher!): run a watchdog
+	  thread to prevent twitter api call from being wedged.
+
+2010-03-26  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-archiver (filter-entry): Last fix was incorrect.  Fixed again.
+
+2010-03-25  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-archiver (filter-entry): Fixed a bug that truncated current.dat
+	  when it has less than MIN-ENTRIES entries and all entries are
+	  before cut-off date.
+
+2009-11-13  Shiro Kawai  <shiro@acm.org>
+
+	* client/chaton/client.scm (make-handler): When an unexpected error
+	  occurs within observer loop, restart the thread loop instead of
+	  exitting the thread.  Unexpected error can occur time to time,
+	  e.g. temporary network failures.
+
+2009-10-26  Shiro Kawai  <shiro@acm.org>
+
+	* client/examples/chaton-twitter (kick-reply-watcher!): Insert delay
+	  before resuming watcher thread loop after capturing an error.
+	  Without the delay, the thread can get into a busy loop if a
+	  malfunction persists for some time (e.g. network failure).
+
+2009-10-19  Shiro Kawai  <shiro@acm.org>
+
+	* client/examples/chaton-twitter (make-observer): return #f when
+	  observer captures an error, so that observer thread won't terminate
+	  when twitter or bit.ly access fail.
+
+2009-10-16  Shiro Kawai  <shiro@acm.org>
+
+	* client/examples/chaton-twitter (forward-from-twitter): Only
+	  forward messages from twitter by the users who follow the bridged
+	  chaton room.  This eliminates bouncing of multipost messages,
+	  pikcing up unintended retweets, etc.
+
+2009-10-13  Shiro Kawai  <shiro@acm.org>
+
+	* client/examples/chaton-twitter (kick-reply-watcher!): fixed a bug
+	  in the handler clause of guard that caused to terminate watcher
+	  thread.
+
+2009-10-10  Shiro Kawai  <shiro@acm.org>
+
+	* client/examples/chaton-twitter: Added a sample chaton-twitter bridge.
+
+	* client/chaton/client.scm (chaton-permalink): Added utility function
+	  to derive permalink from <chaton-client> and timestamp.
+
+2009-09-21  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.scm (chaton-render-rss-1): Use html-escape-string instead
+	  of safe-text for escaping TITLE elements of RSS, since safe-text
+	  may insert A elements which aren't allowed in TITLE.
+
+2009-07-29  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.scm (+show-stack-trace+): missing '@@' markers.
+	  (chaton-render-from-file): enable to switch the order of entries
+	  by a keyword argument newest-first.  It is better to reverse the
+	  order for RSS.
+
+2009-07-26  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.scm (chaton-render-rss-1): fix title.
+
+	* chaton-entry (the-page), chaton.scm (+index.rdf+): Changed the
+	  location of index.rdf under 'var' subdirectory; the room directory
+	  may be unwritable.
+	* chaton-poster (update-rss): Use extended with-output-to-file
+	  to avoid race condition
+
+	* chaton.scm (chaton-render-html-1, chaton-render-rss-1): Refactored
+	  common routines.
+
+	* chaton-poster (poster-main), chaton.scm (+show-stack-trace+),
+	  sample.conf (show-stack-trace-on-error): Added configuration
+	  switch to customize whether stack trace should be shown on
+	  error.
+
+2009-07-26  Kazuki Tsujimoto <kazuki@callcc.net>
+
+	* cahton-poster (poster-main): Show stack trace when an error
+	  occured.
+
+	* chaton-poster (update-rss): Added to support RSS.
+	* chaton-entry, chaton.scm: Changed accordingly.
+
+2009-06-13  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.scm (render-url): Allow '-' in the youtube vid.
+
+	* chaton-archiver (mklink): Ensure directory before creating the
+	  symlink (only becomes a problem when archiver is invoked for the
+	  first time *and* there's nothing to archive.)
+
+2009-06-01  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-entry: Allocates client ID when the entry is accessed.
+	* chaton-viewer (emit-skeleton): Fixed to carry over the client ID
+	  given to the skeleton access.
+	  (client-connected, emit-tail): In strict-login mode, make the server
+	  reject unknown CID instead of allocating new CID.  In that case,
+	  the skeleton access returns a content telling the client to reload,
+	  and the json access returns cid = -1 to indicate the rejection.
+	  Typical public chatroom doesn't need this feature; this is only for
+	  private rooms using http authentication.
+	* sample.conf (loose-login): Added a config parameter to specify
+	  loose-login or strict-login mode.
+	* chaton.js (insertContent): Handles cid = -1 case introduced above.
+
+	* build-site, htaccess, sample.conf: Added settings to allow the
+	  chat-room private using http basic authentication.
+	* chaton-passwd: simple password changing script for private rooms.
+
+2009-05-30  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-entry, chaton.html: Replaced chaton.html by chaton-entry
+	  cgi script for preparation of issuing client ID upon accessing the
+	  room.
+	* build-site, README, htaccess: Changed accordingly.
+
+2009-05-29  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-browser, chaton.css: Added wide padding below the archive view
+	  so that the anchor to the post near the bottom of the archive view
+	  works correctly.
+
+2009-05-28  Shiro Kawai  <shiro@acm.org>
+
+	* client/chaton/client.scm (make-handler): Changed observer signature;
+	  now it is called as (observer <client> <message>).
+	  Also exported a bunch of accessor methods as the means of proper
+	  way to get values from the client.
+	  Also update pos and cid slot _after_ calling the observer, so that
+	  the observer can compare message's pos/cid with the previous ones.
+
+	* client/examples/chaton-watcher: A simple command-line utility that
+	  can monitor multiple chaton rooms.
+
+2009-05-27  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-apilogin: Login returns room-name as well.
+
+	* client/chaton/client.scm (make-handler): Retry after the comet server
+	  disconnected.
+
+	* chaton-browser (day-link): suppress generating links to the date
+	  without archive data.
+
+2009-05-26  Shiro Kawai  <shiro@acm.org>
+
+	* search.html: The search page (using Google inurl:).
+	* conf/site.conf: A new configuration parameter to specify site-wide
+	  search url (instead of in-room search).
+	* chaton.html: Added a link to the search page.
+	* build-site: includes search.html
+	* chaton.css: Added stuff for the search page.
+
+	* chaton-browser: Added links to the days in the month in the right
+	  pane (monthly-navigation).
+	* chaton.css: Added some styles for the monthy navigation.
+
+	* chaton-archiver: Switched boundary of daily archive---entries are
+	  splitted at midnight of GMT, instead of localtime.
+	  The archiver also creates *.cnt files, recording # of entries.
+	  The old archive must be converted by running chaton-archiver with
+	  --rebuild option.  (This may change some entries' permalinks; let's
+	  hope it has limited effect at this point.)
+	* chaton.scm (make-permalink): Changed accordingly (using GMT to
+	  generate permalink url).
+
+2009-05-25  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.scm (chaton): added +logdir+ constant.
+	* chaton-archiver: Emit log to $DATADIR/logs/archive.log.
+	  Revised using common constants in the chaton module for
+	  the directories.
+
+	* README: updated to reflect addition of new scripts.
+
+2009-05-20  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.scm (*url-rx*): Better regex to capture url.
+
+2009-05-18  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-viewer (client-connected, do-child): Changed treatment of
+	  duplicate request; the most likely scenario of dup request is that
+	  the intermediate node timeouts during comet keep the request waiting.
+	  Comet thinks the connection is held, while the client sees it is
+	  disconnected and resend the request.  Now, when we detect dup,
+	  we immediately discard the dup cid and reallocate new one, and
+	  proceed normal comet treatment on the new cid.  The original request
+	  eventually soft-timeouts, checks if cid is still valid, and aborts
+	  if the cid is invalidated (because of the dup request).
+
+	* chaton-viewer: Changed format of S-expr version of status
+	  to an alist for consistency of other parts that treat json/sexpr.
+
+	* chaton-badge: adapted to the above change.
+
+2009-05-17  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-apilogin: Returns icon url as well.
+	* client/chaton/client.scm (<chaton-client>): Added icon-url slot.
+
+	* chaton-viewer (do-monitor): use read-lock while checking the size,
+	  to avoid the hazard if the active log is truncated during checking.
+	  Also touched sources for clearity.
+
+	* chaton.js, chaton-viewer: Changed json/s-expr field name of the
+	  comet reply packet from 'text' to 'content'.
+
+2009-05-16  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.scm (render-url): recognize capital letter suffix for images
+	  as well.
+
+2009-05-15  Shiro Kawai  <shiro@acm.org>
+
+	* client/*: Start adding client library.
+
+	* chaton-viewer (get-header): Read request headers.  Without properly
+	  doing that, the timing of reply got screwed and some clients can't
+	  receive proper reply.
+
+2009-05-14  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-viewer: Added support for intitial CID generation for API,
+	  robots.txt, and returns some reasonable status for other unsupported
+	  requests.
+
+2009-05-12  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.js (fetchContent): fix handling of disconnecting events.
+	  It was wrong to use onException; Firefox calls onSuccess with empty
+	  body when disconnected.
+
+	* chaton-viewer: start adding s-expr interface.
+	  Rejects duplicate request from the same cid.
+
+	* chaton.scm (chaton-read-entries, chaton-render-from-file): split
+	  atomic file reading part from chaton-render-from-file.
+
+2009-05-11  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-apilogin: Added.
+	* build-site, htaccess: Changed accordingly.
+
+	* chaton-viewer (make-json-packet, write-status-js): Use double-quote
+	  to quote field name to comply json spec (rfc4627).
+
+2009-05-10  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.js (startWatchDog, tameWatchDog, bark): Added watchdog timer
+	  for comet connection to support browsers that don't fire any events
+	  when Ajax connection is lost.  The timer won't be fired in normal
+	  circumstances; it only barks when Comet server is restarted but
+	  the browser failed to detect it.
+
+	* htaccess: Force charset=utf-8 for *.html, since the room description
+	  may contain utf-8 characters.
+
+	* sample.conf, chaton.css: Added right-pane including room description
+	  and link to the badge.
+
+	* chaton-badge, badge.html: Added Badge support.
+	* htaccess, build-site, chaton.css: Changed accordingly.
+
+2009-05-09  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.scm (with-output-to-file): Provides a wrapper to support
+	  :atomic keyword arg, that implements a common idiom of write-to-
+	  temporary-file-and-rename.
+	  (+docdir+ etc.): Provides common constants.
+	* chaton-poster: Adapted to the new chaton.scm.
+
+	* chaton-viewer (emit-skeleton): Adds HTTP response header for the
+	  initial skeleton.
+	  (spawn-status): Writes out $(DOCDIR)/var/status.{js,scm} periodically
+	  for those who wants to monitor room status (this obsoletes the old
+	  var/seq file.)
+
+2009-05-08  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-poster (increment-sequence): Saves post sequence number under
+	  $DATADIR/data/sequence instead of $DOCDIR/var/seq.  The latter is
+	  supported for a while until client side javascript is totally
+	  updated.
+	  (record-last-post-timestamp): Saves it to $DATADIR/data/last-post.
+
+	* chaton-viewer (client-tracker): Records the current number of
+	  chatters under $DATADIR/data/num-chatters.
+
+	* chaton-browser (main): 'a/yesterday' link to redirect to
+	  the yesterday's archive.
+	* chaton.html: "Read archive" link points to a/yesterday.
+
+	* chaton-archiver: Rewrote to handle multiple past dates with
+	  sane DST handling, and also allow to leave some minimum amount
+	  of entries in current.dat instead of truncating it strictly
+	  to the today's entry.
+
+2009-05-07  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.scm (chaton-with-shared-locking,chaton-with-exclusive-locking):
+	  Put locking primitives here.
+	* chaton-poster (poster-main): Adapted to use the locking primitive
+	  in chaton.scm.  Wrapped main code with define-module for
+	  testing.
+
+	* chaton.js: If the user is scrolling up to read past messages,
+	  do not scroll to botton when contents is added.  (Thanks to
+	  Toru Hisai for the hint).
+
+	* chaton-archiver (filter-entry): Adapted to the new data file
+	  format.
+
+2009-05-06  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.js (initViewFrame), chaton-viewer (make-skeleton): Put
+	  one trampoline of setTimeout before start fetching the content
+	  into iframe; Safari apparently doesn't like the JapaScript open
+	  Comet connection within the onLoad handler (the browser window
+	  stays "loading..." state.)
+
+	* chaton-viewer (emit-tail), chaton.js (fetchContent): Manage clients
+	  using clients ids.  If no status change, ping back to a client
+	  in much longer time (~5min) than before (~45sec) for less traffic.
+	  Also tracks # of clients more precisely, though there is some
+	  delay involved.
+
+	* chaton-poster (make-entry): Record remote IP as well.
+	* chaton.scm (chaton-render-1): Adapted to the new entry.
+
+	* chaton.js (enablePost): moves focus forcibly to fix a weird
+	  behavior of dissapearing cursor in the textarea.
+
+	* chaton-archiver (chore-for-the-day): Create a link two days
+	  advance.  Because we can't start archiving data for, say, 1/10,
+	  until it's 1/11, and at that moment we need 1/11's link has to
+	  be already created.  Who create that link?  The archiver process
+	  that ran 1/10, which archived the data for 1/9.  Thus we need
+	  to create link for two days beyond the date we're archiving.
+
+	* chaton-viewer: Added -r option (restart) and -c option (check)
+	  for ease of server management.
+
+2009-05-05  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-viewer (emit-tail, spawn-monitor): fixed *mutex* treatment.
+	  (emit-skeleton): no need to read out *text-map* yet.
+	  (main): Added graceful termination by signalling, write pid file
+	  for management, and -k option to kill the running server.
+
+	* build-site: Check if chaton.js needs to be updated, and if not,
+	  do not replace chaton.js (and the viewer's version).
+
+	* chaton-browser (make-page): Changed title display.
+
+	* chaton-archiver, chaton-viewer, chaton-browser, chaton-poster:
+	  Changed current.dat and archive directory under $DATADIR/data/,
+	  and log directory under $DATADIR/logs/, respectievly.  Since
+	  the directory where current.dat exists must be writable from
+	  CGI scripts, it is safe to put them into a subdir so that
+	  we can secure $DATADIR itself.
+	* build-site (do-build): Ensure new directory strcuture, and
+	  also create the data files if it does not exist.
+
+	* chaton.js: Sets nickname cookie even post-text is empty; allowing
+	  the client to change nickname without actually posting a message.
+
+

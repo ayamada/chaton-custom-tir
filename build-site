@@ -1,0 +1,159 @@
+;; -*- mode: scheme -*-
+
+;; Build site according to configuration file
+
+(use srfi-1)
+(use srfi-13)
+(use util.match)
+(use util.list)
+(use file.util)
+(use file.filter)
+
+(define (main args)
+  (match (cdr args)
+    [(config) (do-build (load-config config))]
+    [_ (exit 1 "Usage: gosh build-site <config-file>")])
+  0)
+
+(define (do-build config)
+  (let* ([room-name  (assoc-ref config 'room-name)]
+         [safe-room-name (string-downcase (string-filter room-name #[\w-]))]
+         [docdir  (assoc-ref config 'server-htdocs-dir)]
+         [datadir (assoc-ref config 'server-data-dir)]
+         [bindir  (assoc-ref config 'server-bin-dir)]
+         [cgi-script #`"chaton-poster-,|safe-room-name|"]
+         [comet-script #`"chaton-viewer-,|safe-room-name|"]
+         [archiver-script #`"chaton-archiver-,|safe-room-name|"]
+         [room-name/escd (write-to-string (assoc-ref config 'room-name))]
+         [room-description/escd (write-to-string (assoc-ref config 'room-description))]
+         [xconfig `((comet-script . ,comet-script) (cgi-script . ,cgi-script)
+                    (room-name/escd . ,room-name/escd)
+                    (room-description/escd . ,room-description/escd)
+                    (htaccess-auth . ,(htaccess-auth config))
+                    ,@config)])
+    (ensure-files-and-directories bindir docdir datadir)
+    (receive (nconf chaton-js-update?)
+        (check-if-chaton-js-need-to-change docdir xconfig)
+      ;; copy files
+      (sed "chaton-viewer" (build-path bindir comet-script) nconf)
+      (sed "chaton-archiver" (build-path bindir archiver-script) nconf)
+      (sed "chaton.scm"    (build-path datadir "chaton.scm") nconf)
+      (sed "chaton-poster" (build-path docdir cgi-script) nconf)
+      (sed "chaton-browser"(build-path docdir "a") nconf)
+      (sed "chaton-badge"  (build-path docdir "b") nconf)
+      (sed "chaton-entry"  (build-path docdir "entry") nconf)
+      (sed "chaton-apilogin" (build-path docdir "apilogin") nconf)
+      (sed "search.html"   (build-path docdir "search.html") nconf)
+      (sed "badge.html"    (build-path docdir "badge.html") nconf)
+      (sed "htaccess"      (build-path docdir ".htaccess") nconf)
+      (sed "chaton.css"    (build-path docdir "chaton.css") nconf)
+      (cond
+       [chaton-js-update?
+        (remove-old-chaton-js docdir)
+        (sed "chaton.js" (build-path docdir (assoc-ref nconf 'chaton-js)) nconf)]
+       [else (print "chaton.js unchanged.")])
+      (when (assoc-ref config 'htpasswd-path)
+        (sed "chaton-passwd" (build-path docdir "passwd") nconf))
+      )))
+
+(define (sed inf outf config :optional (verbose? #t))
+  (define executable? #f)
+  
+  (define (xlate-1 line)
+    (apply regexp-replace-all* line
+           (concatenate (map (lambda (cv) `(,#`"@@,(car cv)@@"
+                                            ,(lambda (m) (cdr cv))))
+                             config))))
+  (define (xlate in out)
+    (let1 first-line (read-line in)
+      (unless (eof-object? first-line)
+        (rxmatch-case first-line
+          [#/^#!\/usr\/bin\/env\s+gosh/ ()
+           (set! executable? #t)
+           (display #`"#!,(assoc-ref config 'gosh)" out)]
+          [else (display (xlate-1 first-line) out)])
+        (newline out)
+        (port-for-each (lambda (line) (format out "~a\n" (xlate-1 line)))
+                       (cut read-line in)))))
+
+  (when verbose? (print "installing " outf))
+  (file-filter xlate :input inf :output outf :temporary-file #`",|outf|.t")
+  (sys-chmod outf (if executable? #o555 #o444)))
+
+;; This returns ((<var> . <val>) ...) of config file, in the REVERSE order
+;; of apperance.  The order is important to allow overriding values by
+;; the succeeding definitions (e.g. overriding site-specific parameter
+;; with room-specific parameter).
+(define (load-config file)
+  (define (do-load file seed)
+    (with-input-from-file file
+      (lambda ()
+        (port-fold (lambda (s seed)
+                     (match s
+                       [('include path)
+                        (do-load (if (absolute-path? path)
+                                   path
+                                   (build-path (sys-dirname file) path))
+                                 seed)]
+                       [(var val) (acons var val seed)]))
+                   seed
+                   read))))
+  (do-load file '()))
+
+;; Ensure directories and files that should exist
+(define (ensure-files-and-directories bindir docdir datadir)
+  (for-each make-directory* (list bindir
+                                  (build-path datadir "data")
+                                  (build-path datadir "logs")
+                                  (build-path docdir "var")))
+  (create-if-does-not-exist (build-path datadir "data/current.dat") "")
+  (create-if-does-not-exist (build-path docdir "var/seq") "0"))
+
+(define (create-if-does-not-exist file content)
+  (with-output-to-file file
+    (lambda () (display content))
+    :if-exists #f))
+
+;; Translate chaton.js to see if we need to update it.
+;; Returns an updated config substitutions and a flag to indicate
+;; whether we need to update chaton.js.
+(define (check-if-chaton-js-need-to-change docdir config)
+  (let* ([chaton-js-latest (find-latest-chaton-js docdir)]
+         [timestamp (number->string (sys-time) 36)]
+         [chaton-js-new #`"chaton.,|timestamp|.js"])
+    (if (not chaton-js-latest)
+      (values  `((chaton-js . ,chaton-js-new) (version . ,timestamp) ,@config)
+               #t)
+      (unwind-protect
+          (let1 timestamp-old
+              (rxmatch->string #/chaton\.(\w+)\.js$/ chaton-js-latest 1)
+            (sed "chaton.js" "chaton.js.tmp"
+                 `((version . ,timestamp-old) ,@config) #f)
+            (if (file-equal? "chaton.js.tmp" chaton-js-latest)
+              (values `((chaton-js . ,(sys-basename chaton-js-latest))
+                        (version . ,timestamp-old) ,@config)
+                      #f)
+              (values `((chaton-js . ,chaton-js-new)
+                        (version . ,timestamp) ,@config)
+                      #t)))
+        (sys-unlink "chaton.js.tmp")))))
+  
+(define (find-latest-chaton-js dir)
+  (let1 fs (directory-list dir :add-path? #t :filter #/^chaton\.\w+\.js$/)
+    (if (null? fs) #f (car (reverse fs)))))
+
+(define (remove-old-chaton-js dir)
+  (remove-files (directory-list dir :add-path? #t :filter #/^chaton\.\w+\.js$/)))
+
+;; emit htaccess basic authentication setting if needed
+(define (htaccess-auth config)
+  (if-let1 htpasswd (assoc-ref config 'htpasswd-path)
+    #`"AuthType Basic\
+     \nAuthName \",(assoc-ref config 'room-name) private area\"\
+     \nAuthUserFile ,htpasswd\
+     \nRequire valid-user\
+     \n\
+     \n<Files \"passwd\">\
+     \n  SetHandler cgi-script\
+     \n</Files>\n"
+    ""))

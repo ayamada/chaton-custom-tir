@@ -1,0 +1,39 @@
+<Files "@@cgi-script@@">
+  SetHandler cgi-script
+</Files>
+
+<Files "entry">
+  SetHandler cgi-script
+</Files>
+
+<Files "apilogin">
+  SetHandler cgi-script
+</Files>
+
+<Files "a">
+  SetHandler cgi-script
+</Files>
+
+<Files "b">
+  SetHandler cgi-script
+</Files>
+
+<Files "var/seq">
+  ForceType text/plain
+</Files>
+
+<Files "var/status.scm">
+  ForceType text/plain
+</Files>
+
+<Files "var/status.js">
+  ForceType application/json
+</Files>
+
+<Files *.html>
+  ForceType 'text/html; charset=utf-8'
+</Files>
+
+DirectoryIndex entry
+
+@@htaccess-auth@@

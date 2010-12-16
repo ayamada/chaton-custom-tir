@@ -1,0 +1,235 @@
+#!/usr/bin/env gosh
+;; This script should be run periodically to truncate and
+;; save the logs.
+
+(add-load-path "@@server-data-dir@@")
+
+(define-module chaton.archiver
+  (use file.util)
+  (use file.filter)
+  (use util.match)
+  (use gauche.fcntl)
+  (use gauche.parameter)
+  (use gauche.parseopt)
+  (use gauche.sequence)
+  (use gauche.logger)
+  (use gauche.experimental.lamb)
+  (use srfi-19)
+  (use chaton)
+  (export run-archiver))
+(select-module chaton.archiver)
+
+(define-constant +current-tmp+ #`",|+current-file+|.tmp")
+(define-constant +current-bak+ #`",|+current-file+|.bak")
+
+(define verbose (make-parameter #f))
+(define notrunc (make-parameter #f)) ; suppress truncating current.dat
+
+(define (report fmt . args)
+  (apply log-format fmt args)
+  (when (verbose) (apply format #t fmt args)))
+
+;; NB: We archive chat log by the date boundary of GMT.  Since users
+;; are around the globe, no particular timezone is particulary better
+;; than others, but at least we don't want to deal with daylight saving time.
+;; Internally we treat "date" by the unix time of the beginning of the
+;; date in GMT; in the source, it is noted as 'dis' (date in seconds).
+
+;;;
+;;;  Fetch the data file
+;;;
+
+;; Read in the current.dat.  Returns a list of canonicalized entry.
+;;  <entry> : (<nickname> <timestamps> <text> <ipaddr>)
+;;  <timestamps> : (<seconds> <microseconds> <dis>)
+(define (read-current current.dat)
+  (call-with-input-file current.dat
+    (^(in) (if in
+             (reverse (port-fold canonicalize-entry '() (cut read-line in)))
+             '()))
+    :if-does-not-exist #f))
+
+(define (safe-read line)
+  (guard (e [(<read-error> e) e]) (read-from-string line)))
+
+(define (canonicalize-entry line entries)
+  (match (safe-read line)
+    [(nick (secs usecs) text . opt)
+     `((,nick (,secs ,usecs ,(date-in-seconds secs)) ,text
+              ,(if (pair? opt) (car opt) "0.0.0.0"))
+       ,@entries)]
+    [(? <read-error> x) (warn "unreadable entry: ~a" (ref x'message))]
+    [other (warn "unrecognized entry: ~s" other)]))
+
+;; extract DIS part of canonicalized entry
+(define (entry-dis entry) (match entry [(_ (_ _ dis) _ _) dis]))
+
+;; Retruns a list of dates (date-in-seconds) in entries.
+(define (existing-diss entries)
+  (let1 diss '()
+    (dolist [e entries]
+      (let1 dis (entry-dis e)
+        (unless (memv dis diss) (push! diss dis))))
+    (sort diss)))
+
+;;;
+;;;  Write entries
+;;;
+
+(define (write-entries entries file)
+  (with-output-to-file file
+    (^() (dolist [e entries]
+           (match-let1 (nick (s u _) text ipaddr) e
+             (write `(,nick (,s ,u) ,text ,ipaddr)) (newline))))
+    :atomic #t))
+
+(define (write-count entries file)
+  (with-output-to-file (path-swap-extension file "cnt")
+    (cut write (length entries)) :atomic #t))
+
+(define (write-daily-entry entries dis)
+  (let ([es (filter-entry entries (cut = dis <>) #f)]
+        [file (daily-log-path dis)])
+    (cond [(and (file-exists? file) (not (file-is-symlink? file)))
+           (report "archive file ~a exists.  skipping.\n" file)]
+          [else
+           (report "generating ~a\n" file)
+           (make-directory* (sys-dirname file))
+           (write-entries es file)
+           (write-count es file)])))
+
+(define (truncate-current entries dis)
+  (write-entries (filter-entry entries (cut <= dis <>) 30) +current-tmp+)
+  (cond [(file-equal? +current-tmp+ +current-file+)
+         (report "~a unchanged.\n" +current-file+) (sys-unlink +current-tmp+)]
+        [else
+         (report "truncating ~a\n" +current-file+)
+         (sys-rename +current-file+ +current-bak+)
+         (sys-rename +current-tmp+ +current-file+)]))
+
+(define (daily-log-path dis)
+  (let1 tm (sys-gmtime dis)
+    (build-path +datadir+ (format "~4,'0d/~2,'0d/~2,'0d.dat"
+                                  (+ (ref tm'year) 1900)
+                                  (+ (ref tm'mon) 1)
+                                  (ref tm'mday)))))
+
+(define (filter-entry entries check-date min-entries)
+  (let* ([num-entries (length entries)]
+         [erase-limit (if min-entries (- num-entries min-entries) +inf.0)])
+    (reverse (values-ref
+              (fold2 (lambda (e r cnt)
+                       (values (if (or (>= cnt erase-limit)
+                                       (check-date (entry-dis e)))
+                                 (cons e r)
+                                 r)
+                               (+ cnt 1)))
+                     '() 1 entries)
+              0))))
+
+;;;
+;;;  Chore for the day
+;;;
+
+(define (chore-for-the-day today-dis rebuild)
+  (chaton-with-exclusive-locking
+   (lambda ()
+     (when rebuild (re-gather-current)) ; special for transition
+     (let* ([entries (read-current +current-file+)]
+            [min-dis (find-min (existing-diss entries))])
+       (do ([dis min-dis (dis+ dis 1)])
+           [(>= dis today-dis)]
+         (write-daily-entry entries dis))
+       (truncate-current entries today-dis)
+       (mklink (daily-log-path today-dis))
+       (mklink (daily-log-path (dis+ today-dis 1)))))))
+
+(define (mklink daily-file)
+  (cond [(file-exists? daily-file)
+         (report "link ~a exists.  skipping.\n" daily-file)]
+        [else
+         (report "creating link ~a\n" daily-file)
+         (make-directory* (sys-dirname daily-file)) ;ensure directory
+         (sys-symlink "../../current.dat" daily-file)]))
+
+(define (run-archiver args)
+  (let-args (cdr args) ([q "q|quiet"]
+                        [n "n|notrunc"]
+                        [l "l|logfile=s" (build-path +logdir+ "archive.log")]
+                        [re "rebuild"] ; special option for transition
+                        [else => (lambda _ (usage (car args)))]
+                        . rest)
+    (log-open l)
+    (parameterize ([verbose (not q)]
+                   [notrunc n])
+      (match rest
+        [()        (chore-for-the-day (current-dis) re)]
+        [(datestr) (chore-for-the-day (parse-date datestr) re)]
+        [other     (usage (car args))]))
+    0))
+
+(define (usage argv0)
+  (exit 1 #`"Usage: ,argv0 [options] [date]\
+   \nOptions:\
+   \n -q, --quiet         Operate quietly.\
+   \n -l, --logfile=FILE  Specify an alternative logfile.\n"))
+
+;; Temporary stuff for transition from localtime-based archive to GMT-based.
+;; We concatenate all existing logs into current.dat, then re-split it.
+;; We know we only have logs for May 2009.
+(define (re-gather-current)
+  (let1 files (directory-list #`",|+datadir+|/2009/05/" :filter #/\.dat$/
+                              :add-path? #t)
+    (call-with-output-file +current-tmp+
+      (lambda (out)
+        (dolist [f files]
+          (unless (file-is-symlink? f)
+            (call-with-input-file f (cut copy-port <> out)))
+          (sys-rename f #`",|f|.orig"))
+        (let1 entries (filter-entry (read-current +current-file+)
+                                    (cute = (current-dis) <>) #f)
+          (dolist [e entries]
+            (match-let1 (nick (s u _) text ipaddr) e
+              (write `(,nick (,s ,u) ,text ,ipaddr) out) (newline out))))))
+    (sys-rename +current-file+ +current-bak+)
+    (sys-rename +current-tmp+ +current-file+)))
+
+;;;
+;;; Date utilities
+;;;
+
+;; Returns unix time of the beginning of the day.
+(define (parse-date str)
+  (rxmatch-case str
+    [#/^(\d\d\d\d)\/(\d{1,2})\/(\d{1,2})$/ (_ y m d)
+     (let ([yy (x->integer y)]
+           [mm (x->integer m)]
+           [dd (x->integer d)])
+       (unless (and (<= 2000 yy) (<= 1 mm 12) (<= 1 dd 31))
+         (exit 1 "bad date: ~a" str))
+       (make-dis yy mm dd))]
+    [else (exit 1 "bad date: ~a" str)]))
+
+;; Returns unix time of the beginning of the day (in UTC) when SECONDS is in.
+(define (date-in-seconds seconds)
+  (let1 tm (sys-gmtime seconds)
+    (make-dis (+ (ref tm 'year) 1900) (+ (ref tm 'mon) 1) (ref tm 'mday))))
+
+;; Returns unix time of the beginning of the day Y/M/D.
+(define (make-dis y m d)
+  (time-second (date->time-utc (make-date 0 0 0 0 d m y 0))))
+
+(define (current-dis) (date-in-seconds (sys-time)))
+
+;; Add DAYS to the date represented in DIS.
+(define (dis+ dis days) (+ dis (* days 86400)))
+
+;;;===================================================================
+
+(select-module user)
+(import chaton.archiver)
+(define main run-archiver)
+
+;; Local variables:
+;; mode: scheme
+;; end:

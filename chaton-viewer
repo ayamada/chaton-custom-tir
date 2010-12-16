@@ -1,0 +1,561 @@
+#!/usr/bin/env gosh
+;;;
+;;;  Comet daemon
+;;;
+
+(add-load-path "@@server-data-dir@@")
+
+(define-module chaton.viewer
+  (use srfi-1)
+  (use srfi-13)
+  (use srfi-27)
+  (use srfi-42)
+  (use chaton)
+  (use gauche.threads)
+  (use gauche.net)
+  (use gauche.logger)
+  (use gauche.fcntl)
+  (use gauche.process)
+  (use gauche.experimental.ref)
+  (use gauche.experimental.lamb)
+  (use text.html-lite)
+  (use text.tree)
+  (use rfc.822)
+  (use rfc.uri)
+  (use file.util)
+  (use util.match)
+  (use util.list)
+  (use www.cgi)
+  (export +viewer-port+ +viewer-file+ +viewer-log+
+          run-viewer-server restart-viewer-server shutdown-viewer-server
+          check-viewer-server)
+  )
+(select-module chaton.viewer)
+
+(define-constant +viewer-port+ (x->integer "@@comet-port@@"))
+(define-constant +viewer-file+ "@@server-data-dir@@data/current.dat")
+(define-constant +viewer-log+ "@@server-data-dir@@logs/comet.log")
+(define-constant +credential+ "@@server-data-dir@@auth")
+(define-constant +loose-login+ (read-from-string "@@loose-login@@"))
+
+;; Global data shared between threads.  Accessor should lock *mutex* (ugh!).
+(define *mutex* (make-mutex))
+(define *cv* (make-condition-variable))
+(define *size* 0)
+(define *last-state* #f)
+(define *text-map* (make-tree-map = <)) ; position -> rendered text fragment
+(define *sexp-map* (make-tree-map = <)) ; position -> list of entries
+
+;;;
+;;;   Main entry
+;;;
+
+(define (run-viewer-server port source)
+  (initialize port source)
+  (let1 server-sock (make-server-socket 'inet port :reuse-addr? #t)
+    (spawn-monitor source)
+    (spawn-status)
+    (spawn-client-tracker)
+    (guard (e [else (log-format "main loop error: ~a" (~ e'message)) (cleanup)])
+      (while #t (spawn-child (socket-accept server-sock))))))
+
+;;;
+;;;   Monitor thread
+;;;
+
+(define (spawn-monitor source)
+  (log-format "monitor start on ~s" source)
+  (mutex-lock! *mutex*)
+  (pull-text! source #t)                ; this unlocks mutex when error.
+  (mutex-unlock! *mutex*)
+  (thread-start! (make-thread (cut do-monitor source))))
+
+(define (do-monitor source)
+  (guard (e [else (log-format "monitor error: ~s" (~ e'message))])
+    (while #t
+      (and (file-exists? source)
+           (chaton-with-shared-locking
+            (^() (let1 s (file-size source)
+                   (mutex-lock! *mutex*)
+                   (unless (or (not s) (not *size*) (= s *size*))
+                     (log-format "monitor: source extended to ~s" s)
+                     (pull-text! source (< s *size*))
+                     (condition-variable-broadcast! *cv*))
+                   (mutex-unlock! *mutex*)))))
+      (sys-sleep 1)))
+  (do-monitor source))
+
+;; Reads source file into *text-map*, updates global data.
+;; *mutex* must be locked by the caller.   If an error occurs,
+;; pull-text! unlocks *mutex*.
+(define (pull-text! source trunc?)
+  (when trunc? (tree-map-clear! *text-map*) (tree-map-clear! *sexp-map*))
+  (guard (e [else (mutex-unlock! *mutex*) (raise e)])
+    (let ([pos (if trunc? 0 *size*)]
+          [last-state (if trunc? #f *last-state*)])
+      (receive (entries new-pos) (chaton-read-entries source pos)
+        (receive (ttree new-state) (chaton-render entries last-state)
+          (tree-map-put! *sexp-map* pos (filter-map xform-entry entries))
+          (tree-map-put! *text-map* pos (tree->string ttree))
+          (set! *last-state* new-state)
+          (set! *size* new-pos))))))
+
+(define (xform-entry entry)
+  (match entry
+    [(nick (sec usec) text . _) `(,nick (,sec ,usec) ,text)] [_ #f]))
+
+;;;
+;;;   Status thread
+;;;
+
+(define (spawn-status) (thread-start! (make-thread do-status)))
+
+(define (do-status)
+  (guard (e [else (log-format "status error: ~s" (~ e'message))])
+    (let loop ((mtimes #f))
+      (let1 mtimes1
+          (map file-mtime `(,+sequence-file+ ,+last-post-file+ ,+num-chatters-file+))
+        (unless (equal? mtimes mtimes1) (write-statuses))
+        (sys-sleep 10)
+        (loop mtimes1))))
+  (do-status))
+
+(define (write-statuses)
+  (let ([s (x->integer (file->string +sequence-file+ :if-does-not-exist #f))]
+        [l (x->integer (file->string +last-post-file+ :if-does-not-exist #f))]
+        [n (x->integer (file->string +num-chatters-file+ :if-does-not-exist #f))])
+    (make-directory* (sys-dirname +status.js+)) ;ensure dir
+    (write-status s l n #t) (write-status s l n #f)))
+
+(define (write-status s l n sexp?)
+  (with-output-to-file (if sexp? +status.scm+ +status.js+)
+    (cut write-tree
+         (chaton-alist->stree
+          `((last-post . ,l) (num-chatters . ,n) (post-sequence . ,s))
+          sexp?))
+    :atomic #t))
+
+;;;
+;;;   Comet threads
+;;;
+
+(define (spawn-child csock) (thread-start! (make-thread (cut do-child csock))))
+
+(define (do-child csock)
+  (unwind-protect
+      (guard (e [(eq? e 'disconnected) (log-child csock "disconnected")]
+                [(eq? e 'dup) (log-child csock "abandoned for dup request")]
+                [(eq? e 'expired) (log-child csock "cid expired")]
+                [(eq? e 'processed) #f]
+                [else (log-child csock "error ~s" (~ e'message))])
+        (match-let1 (pos cid fmt) (get-header csock (socket-input-port csock))
+          (if pos
+            (emit-tail csock pos cid fmt)
+            (emit-skeleton csock cid))))
+    (socket-close csock)))
+
+;; returns the integer parameter given to the query
+(define (get-header csock in)
+  (let1 req (read-line in)
+    (unless (string? req) (raise 'disconnected))
+    (let1 m (#/^GET\s+\/([^?\s]+)?(?:\?(\S+)?)?\s+HTTP\/1.1/i req)
+      (log-child csock "request ~s" req)
+      (rfc822-read-headers in)
+      (unless m (emit-plain csock "400" "Bad Request"))
+      (let ([path (m 1)]
+            [parms (cond [(m 2) => (cut cgi-parse-parameters :query-string <>)]
+                         [else '()])])
+        (rxmatch-case path
+         [test not `(,(cgi-get-parameter "p" parms :convert string->number) ;pos
+                     ,(cgi-get-parameter "c" parms :convert string->number) ;cid
+                     ,(case (cgi-get-parameter "s" parms
+                                               :convert string->number)
+                        [(0) 'json]
+                        [(1) 'sexpr]
+                        [else 'preformatted]))]
+         ;; The rest raises 'processed and won't return.
+         [#/^getcid$/ () (emit-cid csock (cgi-get-parameter "cred" parms))]
+         [#/^robots\.txt$/ () (emit-robots.txt csock)]
+         [else (emit-plain csock "404" "Not Found")])))))
+
+;; NB: it may be more efficient if we send out existing content here,
+;; instead of letting client to fetch it immediately after this reply.
+;; A possible option for future development.
+(define (emit-skeleton csock cid)
+  (let ([s (tree->string (make-skeleton (cond [(and cid (valid-cid? cid)) cid]
+                                              [+loose-login+ (new-client-cid)]
+                                              [else (emit-bad-cid csock)])))]
+        [out (socket-output-port csock)])
+    (write-tree `("HTTP/1.1 200 OK\r\n\
+                   Content-type: text/html; charset=utf-8\r\n\
+                   Cache-control: no-cache\r\n\
+                   Content-length: ",(string-size s)"\r\n\r\n",s)
+                out)
+    (flush out)))
+
+(define (emit-bad-cid csock)
+  (emit-general csock "400" "text/html" (tree->string (make-bad-cid))))
+
+;; Let the client wait until one of the following condition is met:
+;;
+;;  - The database file has changed (pos != *size*).  We send the
+;;    added data back to the client.
+;;  - The client disconnected.
+;;  - 'Soft' timeout reached.   'Soft' timeout is somewhere between
+;;    15-30 seconds.  In this case we check if the number of clients
+;;    has been changed; if not, we wait again.  If it has, we send
+;;    back a ping packet to notify the change of the number of clients.
+;;  - 'Hard' timeout reached.   'Hard' timeout is around 5 minutes.
+;;    We send back ping packet to the client anyway.  This is necessary
+;;    to detect if the client is gone.
+
+;; fmt: one of sexpr, json or preformatted
+(define (emit-tail csock pos cid fmt)
+  (define ccnt (get-num-clients))
+  (define time-started (sys-time))
+  (define ncid (client-connected csock cid)) ; possibly update cid
+  (define sexp? (eq? fmt 'sexpr))
+  (define pref? (eq? fmt 'preformatted))
+  (unless ncid                ; only happends when +loose-login+ is #f
+    (send-expired csock sexp?) (raise 'expired))
+  (let loop ()
+    (mutex-lock! *mutex*)
+    (cond [(equal? pos *size*)  ; wait until *size* changes or timeout
+           (cond
+            [(not (eqv? ncid cid)) ; this is reconnection after server restart.
+             (mutex-unlock! *mutex*)
+             (send-ping csock ncid pos sexp?)]
+            [(mutex-unlock! *mutex* *cv* (+ 15 (random-integer 15))) (loop)]
+            [(not (valid-cid? ncid)) ; client already reconnected. abandon self.
+             (raise 'dup)]
+            [(< time-started (- (sys-time) (+ 240 (random-integer 120))))
+             (mutex-unlock! *mutex*)
+             (send-ping csock ncid pos sexp?)] ; hard timeout
+            [(and-let* ([ccnt2 (get-num-clients)] [ (not (= ccnt ccnt2)) ])
+               (mutex-unlock! *mutex*)
+               (send-ping csock ncid pos sexp?) #t)] ; soft timeout, ccnt change
+            [else (loop)])]
+          [(< pos *size*)
+           (let ([s *size*] [content (content-retrieve pos pref?)])
+             (mutex-unlock! *mutex*)
+             (send-diff csock ncid pos s content sexp?))]
+          [else                         ;file is truncated?
+           (let ([s *size*] [content (content-retrieve 0 pref?)])
+             (mutex-unlock! *mutex*)
+             (send-diff csock ncid 0 s content sexp?))])))
+
+(define (send-diff csock cid start end content sexp?)
+  (log-child csock "sending ~s-~s" start end)
+  (send-reply csock cid end content sexp?))
+
+(define (send-ping csock cid pos sexp?)
+  (log-child csock "ping back ~a" cid)
+  (send-reply csock cid pos #f sexp?))
+
+(define (send-expired csock sexp?)
+  (send-reply csock -1 0 #f sexp?))
+
+(define (send-reply csock cid pos content sexp?)
+  (client-replied csock cid)
+  (let ([packet (tree->string (make-packet cid pos content sexp?))]
+        [out (socket-output-port csock)])
+    (write-tree `("HTTP/1.1 200 OK\r\n\
+      Content-type: application/",(if sexp? "x-sexpr" "json")"; charset=utf-8\r\n\
+      Cache-control: no-cache\r\n\
+      Content-length: ",(string-size packet)"\r\n\r\n",packet) out)
+    (flush out)))
+
+(define (make-packet cid pos content sexp?)
+  (chaton-alist->stree
+   `((pos . ,pos) (nc . ,(get-num-clients)) (ver . "@@version@@")
+     (cid . ,cid) (content . ,(or content (if sexp? '() ""))))
+   sexp?))
+
+(define (content-retrieve start pref?)
+  (define tmap (if pref? *text-map* *sexp-map*))
+  (define unit (if pref? "" '()))
+  (define merge (if pref? string-concatenate-reverse (.$ concatenate reverse)))
+  (do ([key start (tree-map-successor tmap key)]
+       [r '() (cons (tree-map-get tmap key unit) r)])
+      [(not key) (merge r)]))
+
+;; Other auxiliary contents.  These raises 'processed after emitting content.
+(define (emit-plain csock stat desc)
+  (log-child csock #`",stat ,desc")
+  (emit-general csock stat "text/plain" desc))
+
+(define (emit-robots.txt csock)
+  (log-child csock "200 OK")
+  (emit-general csock "200 OK" "text/plain" "User-Agent: *\nDisallow: /\n"))
+
+(define (emit-cid csock cred)
+  (if (equal? cred *server-cred*)
+    (let1 cid (new-client-cid)
+      (log-child csock "getcid OK ~a" cid)
+      (emit-general csock "200 OK" "application/x-sexpr"
+                    (write-to-string `((cid . ,cid) (pos . ,*size*)))))
+    (begin
+      (log-child csock "getcid credential mismatch")
+      (emit-general csock "503" "text/plain" "bad credential"))))
+
+(define (emit-general csock status ctype content)
+  (write-tree `("HTTP/1.1 ",status"\r\n\
+                Content-type: ",ctype"; charset=utf-8\r\n\
+                Content-length: ",(string-size content)"\r\n\r\n",content)
+              (socket-output-port csock))
+  (raise 'processed))
+
+(define (log-child csock fmt . args)
+  (log-format "(~a) ~a"
+              (if-let1 addr (socket-address csock) (sockaddr-name addr) #f)
+              (apply format fmt args)))
+
+;;;
+;;;   Client tracking
+;;;
+
+;; Client is identified by CID.  When client first connects to the comet
+;; server we allocate a new CID for it.
+;; *client-table* maps CID into:
+;;    ClientEntry <connected?> <timestamp>
+;; <Connected?> is #t if client's request is held by the comet server, and
+;; #f if we send back a reply and the client has not yet issued a new request.
+;; By the nature of Comet, it should be #t for most of the time.
+;; <Timestamp> is the last time we sent back a reply to the client.
+;;
+;; If the client is not connected and <timestamp> is older than CLNT_TIMEOUT
+;; from now, we assume the client is gone.  An active client usually reconnects
+;; immediatly after we send back the reply, so we can set CLNT_TIMEOUT
+;; fairly short.
+
+(define *clnt-mutex* (make-mutex))
+(define *clnt-table* (make-hash-table 'eqv?)) ; cid -> (waiting . timestamp)
+(define-constant CLNT_TIMEOUT 10)
+(define-constant CID_MAX #x10000000)
+
+(define (make-cid-entry waiting?) (cons waiting? (sys-time)))
+(define (cid-waiting? entry)      (car entry))
+(define (cid-mark-waiting! entry) (set-car! entry #t))
+(define (cid-unmark-waiting! entry)
+  (begin (set-car! entry #f) (set-cdr! entry (sys-time))))
+(define (cid-timestamp entry)     (cdr entry))
+
+(define (%allocate-cid init?)
+  (do ([cid (random-integer CID_MAX) (random-integer CID_MAX)])
+      [(not (hash-table-exists? *clnt-table* cid))
+       (hash-table-put! *clnt-table* cid (make-cid-entry (not init?)))
+       cid]))
+
+(define (new-client-cid)
+  (with-locking-mutex *clnt-mutex* (cut %allocate-cid #t)))
+
+(define (valid-cid? cid)
+  (with-locking-mutex *clnt-mutex* (cut hash-table-exists? *clnt-table* cid)))
+
+;; returns cid, possibly new one if the provided one is obsolete.
+(define (client-connected csock cid)
+  (with-locking-mutex *clnt-mutex*
+    (^() (if-let1 e (hash-table-get *clnt-table* cid #f)
+           (if (cid-waiting? e) ; this is a duplicate request.
+             (rlet1 ncid (%allocate-cid #f)
+               (log-child csock "obsoleting dup cid: ~a; reallocating ~a" cid ncid)
+               (hash-table-delete! *clnt-table* cid))
+             (begin (cid-mark-waiting! e) cid))
+           (if +loose-login+
+             (rlet1 ncid (%allocate-cid #f)
+               (log-child csock "child has unknown cid: ~a, reallocating ~a" cid ncid))
+             #f)))))
+
+(define (client-replied csock cid)
+  (with-locking-mutex *clnt-mutex*
+    (^() (cond [(hash-table-get *clnt-table* cid #f) => cid-unmark-waiting!]
+               [else (log-child csock "child has unknown cid: ~a" cid)]))))
+
+(define (get-num-clients)
+  (with-locking-mutex *clnt-mutex* (cut hash-table-num-entries *clnt-table*)))
+
+(define (client-sweep!)
+  (with-locking-mutex *clnt-mutex*
+    (^() (let1 lim (- (sys-time) CLNT_TIMEOUT)
+           (hash-table-for-each
+            *clnt-table*
+            (^(k v)
+              (when (and (not (cid-waiting? v)) (<= (cid-timestamp v) lim))
+                (log-format "client ~a gone" k)
+                (hash-table-delete! *clnt-table* k))))))))
+
+(define (spawn-client-tracker)
+  (thread-start! (make-thread client-tracker)))
+
+(define (client-tracker)
+  (let loop ((nc (get-num-clients)))
+    (sys-sleep 1)
+    (guard (e [else (log-format "tracker: ~a" (~ e'message))])
+      (client-sweep!))
+    (let1 nnc (get-num-clients)
+      (unless (= nc nnc)
+        (with-output-to-file +num-chatters-file+ (cut write nc) :atomic #t))
+      (loop nnc))))
+
+;;;
+;;;   API authentication
+;;;
+
+(define *server-cred*
+  (string-concatenate
+   (list-ec (: i 3) (number->string (hash (* (random-integer (expt 2 32))
+                                             (sys-time) (sys-getpid)))))))
+
+(define (generate-credential)
+  (with-output-to-file +credential+ (cut display *server-cred*) :atomic #t))
+
+;;;
+;;;   Content to distribute
+;;;
+
+(define-constant +content-header+
+  (html:head (html:title "Chaton")
+             (html:link :href "@@httpd-url@@@@url-path@@chaton.css" :rel "Stylesheet" :type "text/css")
+             (html:script :src "@@prototype-url@@" :type "text/javascript")
+             (html:script :src "@@httpd-url@@@@url-path@@@@chaton-js@@"
+                          :type "text/javascript")))
+(define (make-skeleton cid)
+  (html:html +content-header+
+   (html:body
+    :onload (format "initViewFrame(~d);" cid)
+    (html:div :id "view-pane")
+    (html:div :id "status-pane" (html:p :id "status-line" "Connecting...")))))
+
+(define (make-bad-cid)
+  (html:html +content-header+
+   (html:body
+    (html:div :id "view-pane"
+     (html:h1 "Session expired")
+     (html:p  "Please reload to refresh the session")))))
+
+;;;
+;;;  Daemon management
+;;;
+
+(define *pidfile* "@@server-data-dir@@viewer.pid")
+
+(define (read-pid)
+  (guard (e [(<system-error> e) #f]) (string->number (sys-readlink *pidfile*))))
+
+(define (write-pid) (sys-symlink (x->string (sys-getpid)) *pidfile*))
+
+;;;
+;;;  Initialize, shutdown, and process management
+;;;
+
+(define (initialize port file)
+  (random-source-randomize! default-random-source)
+  (guard (e [(<system-error> e)
+             (if-let1 pid (read-pid)
+               (unless (= pid (sys-getpid))
+                 (exit 1 "@@comet-script@@ seems already running (pid ~a).\
+                          If you're sure that the process isn't running,\
+                          remove ~a and run @@comet-script@@ again."
+                       pid *pidfile*))
+               (exit 1 "@@comet-script@@ can't write pidfile (~a): ~a"
+                     *pidfile* (~ e'message)))])
+    (write-pid))
+  (log-format "starting at port ~a" port)
+  (generate-credential)
+  (set-signal-handler!
+   (sys-sigset SIGHUP SIGINT SIGTERM)
+   (^(s) (log-format "exitting by signal ~a" (sys-signal-name s)) (cleanup))))
+
+(define (cleanup) (sys-unlink *pidfile*) (exit 0))
+
+(define (shutdown-viewer-server quiet?)
+  (if-let1 pid (read-pid)
+    (guard (e [(<system-error> e)
+               (exit 1 "Killing @@comet-script@@ failed: ~a" (~ e'message))])
+      (sys-kill pid SIGINT)
+      (unless quiet? (print "@@comet-script@@ pid "pid" is killed.")))
+    (unless quiet? (print "@@comet-script@@ isn't running."))))
+
+(define (check-viewer-server port)
+  (if-let1 pid (read-pid)
+    (if (check-running pid port)
+      (print "@@comet-script@@ (pid "pid") running.")
+      (print "@@comet-script@@ (pid "pid") does not respond.\
+              \nYou might want to remove "*pidfile*"."))
+    (print "@@comet-script@@ is not running.")))
+
+(define (restart-viewer-server quiet? port file)
+  (if-let1 pid (read-pid)
+    (guard (e [(<system-error> e) (sys-unlink *pidfile*)])
+      (sys-kill pid SIGTERM)
+      (sys-sleep 1)))
+  ;; We start new instance.
+  ;; NB: We should be more careful about daemonization; better to
+  ;; redirect stdout and stderr to /dev/null for the child process.
+  (let1 pid (sys-fork)
+    (cond [(= pid 0) (run-viewer-server port file)]
+          [(check-running pid port)
+           (unless quiet? (print "@@comet-script@@ Restarted (pid "pid")."))]
+          [else (exit 1 "@@comet-script@@ couldn't be started.\n")])))
+
+(define (check-running pid port)
+  (let loop ((n 0))
+    (cond [(= n 3) #f]                  ;retry limit
+          [else
+           (sys-sleep 1)
+           (or (guard (e [(<system-error> e) #f])
+                 (call-with-client-socket
+                     (make-client-socket 'inet "localhost" port)
+                   (^(in out)
+                     (display "GET / HTTP/1.1\r\nhost: localhost\r\n\r\n" out)
+                     (flush out)
+                     (port->string in))))
+               (loop (+ n 1)))])))
+
+;;;===================================================================
+
+(select-module user)
+(use gauche.logger)
+(use gauche.parseopt)
+(import chaton.viewer)
+
+(define (main args)
+  (let-args (cdr args) ([port "p|port=i" +viewer-port+]
+                        [file "f|file=s" +viewer-file+]
+                        [log  "l|log=s"  +viewer-log+]
+                        [kill "k|kill"]
+                        [check "c|check"]
+                        [restart "r|restart"]
+                        [quiet? "q|quiet"]
+                        [else => (lambda _ (usage))])
+    (log-open (if (equal? log "-") #t log))
+    (cond
+     [kill    (shutdown-viewer-server quiet?)]
+     [check   (check-viewer-server port)]
+     [restart (restart-viewer-server quiet? port file)]
+     [else    (run-viewer-server port file)]))
+  0)
+
+(define (usage)
+  (exit 1 #`"Usage:\
+   \n  @@comet-script@@ [-p port][-f file][-l log]\
+   \n  @@comet-script@@ -k|--kill\
+   \n  @@comet-script@@ -c|--check [-p port]\
+   \n  @@comet-script@@ -r|--restart [-p port][-f file][-l log]\
+   \nOptions:\
+   \n  The first form starts the Chaton viewer server.  The following\
+   \n  options are accepted, though you shouldn't need to change the\
+   \n  default values (showin in []) unless you're doing some experiment.\
+   \n   -p, --port PORT   Specify the server port number.  [,+viewer-port+]\
+   \n   -f, --file FILE   Specify the file the viewer monitors.\
+   \n           [,+viewer-file+]\
+   \n   -l, --log LOGFILE Specify the log file.  '-' for stdout.\
+   \n           [,+viewer-log+]\
+   \n  The second form (-k or --kill) shuts down the existing viewer.\
+   \n  The third form (-c or --check) checks if the server is running.\
+   \n  The fourth form (-r or --restart) restarts the running viewer if there's\
+   \n  one, or starts a new viewer, in the background process.\n"))
+
+;; Local variables:
+;; mode: scheme
+;; end:

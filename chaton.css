@@ -1,0 +1,62 @@
+body { margin: 0; padding: 0; }
+#room-title { margin: 10pt 10pt -20pt 10pt; 
+              font-size: 150%; font-family: Sans, Ariel, Helvetica; }
+
+#right-pane { display: inline; float: right; width: 200px; }
+#right-pane > div { padding-right: 10px; }
+#right-pane .chaton-logo { text-align: right; }
+#right-pane .room-description { padding-top: 15px; font-size: 90%; }
+#right-pane .room-links { padding-top: 15px; text-align: right; }
+
+#left-pane  { margin: 10px 210px 10px 10px; padding: 10pt; height: 100% }
+#left-pane #navigation { text-align: right; }
+#view-pane { padding: 3px; border-width: 0pt; }
+#view-frame-container { width: 100%; height: 75% }
+#view-frame { width: 100%; height: 100%; }
+
+#post-form table { padding-top: 20px; width: 100%; }
+#post-form table #post-text { width: 100%; }
+
+.timestamp { float: right; color: #bbbbbb; font-size: 80%; }
+.chatter   { color: #907040; font-size: 95%; margin-top: 1em; }
+.permalink-anchor { float: right; color: #bbeeee; 
+                    text-decoration: none; font-size: 80%; }
+.entry-header { margin-top: 1em; }
+.entry-single { margin-left: 1.5em; }
+.entry-multi  { margin-left: 1.5em; background-color: #ddddff; overflow: auto;}
+#status-pane { width: 100% }
+#status-pane p { text-align: right; font-size: 60%}
+#status-pane p .status-alert { color: #aa4444; }
+#status-pane p .status-ok    { color: #44aa44; }
+
+#archive-view { padding: 3px; border: inset 2px gray; }
+.archive-navigate { border-width: 0pt; }
+.archive-navigate table { width: 100%; border: none; }
+.archive-navigate .to-prev { text-align: left; }
+.archive-navigate .to-room { text-align: center; }
+.archive-navigate .to-next { text-align: right; }
+#archive-pane { padding-bottom: 1000px; }
+
+div.monthly-navigate { margin:10px 0 10px 0; padding: 0; }
+.monthly-navigate p  { margin:0; padding: 0; }
+.monthly-navigate p.month-link        { background-color: #ed4; }
+.monthly-navigate p.month-link-active { background-color: #fe6; }
+.monthly-navigate ul { margin:0; padding: 0; }
+.monthly-navigate li { list-style-type: none; padding-left: 15px; }
+.monthly-navigate .navigate-today { background-color: #fee; }
+
+.search-box  { margin: 3em 0 3em 0; padding: 0; }
+.search-area-url { font-family: mono, courier; }
+.search-box p.search-area { margin: 0; padding: 0 0 0 30px; }
+.search-navigate { margin: 0; padding: 0; text-align: right; }
+
+.badge-main { margin-top: 30pt; margin-left: 20pt; }
+.badge-note { font-size: 90%; }
+
+img { margin: 3px; border: none; }
+img.hide-while-loading { display: none; }
+img.wshrunk { width: @@img-size-limit@@px; }
+img.hshrunk { height: @@img-size-limit@@px; }
+
+object.youtube { margin: 3px; border: none; }
+iframe.nicovideo { margin: 3px; border: none; }

@@ -1,0 +1,139 @@
+#!/usr/bin/env gosh
+;; Archive browser CGI
+
+(add-load-path "@@server-data-dir@@")
+
+(define-module chaton.browser
+  (use www.cgi)
+  (use text.html-lite)
+  (use text.tree)
+  (use file.util)
+  (use chaton)
+  (use srfi-19)
+  (export run-browser))
+(select-module chaton.browser)
+
+(define *room* "@@room-name@@")
+
+(define (run-browser args)
+  (cgi-main (lambda (params)
+              (rxmatch-case (cgi-get-metavariable "PATH_INFO")
+                [#/^\/(\d\d\d\d)\/(\d\d)\/(\d\d)$/ (_ y m d)
+                 (emit-archfile (x->integer y) (x->integer m) (x->integer d))]
+                [#/^\/today/ () (emit-redirect (current-date))]
+                [#/^\/yesterday/ () (emit-redirect (date+ (current-date) -1))]
+                [else (emit-archfile 1970 1 1)]))))
+
+(define (emit-redirect date)
+  (cgi-header
+   :location (apath (date-year date) (date-month date) (date-day date))))
+
+(define (emit-archfile y m d)
+  (let1 archfile (dpath y m d)
+    (make-page y m d (if (file-exists? archfile)
+                          (chaton-render-from-file archfile 0 #f)
+                          ""))))
+
+(define (make-page y m d content)
+  (let1 title (format "~a > Archives > ~a" *room* (ymd y m d))
+    `(,(cgi-header :content-type "text/html; charset=utf-8")
+      ,(html:html
+        (html:head
+         (html:title (html-escape-string title))
+         (html:link :href "@@httpd-url@@@@url-path@@chaton.css"
+                    :rel "Stylesheet" :type "text/css")
+         (html:script :src "@@prototype-url@@" :type "text/javascript")
+         (html:script :src "@@httpd-url@@@@url-path@@@@chaton-js@@"
+                      :type "text/javascript"))
+        (html:body
+         (html:h1 :id "room-title"
+                  (html:img :class "room-icon" :src "@@icon-url@@"
+                            :align "absmiddle" :alt "")
+                  (html-escape-string title))
+         (html:div
+          :id "right-pane"
+          (html:div :class "chaton-logo"
+                    "Built on "
+                    (html:a :href "http://practical-scheme.net/chaton/"
+                            "Chaton"))
+          (html:div :class "room-links"
+                    (html:a :href "@@httpd-url@@@@url-path@@search.html" "Search")
+                    " | "
+                    (html:a :href "@@httpd-url@@@@url-path@@badge.html" "Badge")
+                    " | "
+                    (html:a :href "http://practical-scheme.net/chaton/doc/Tools" "Tools"))
+          (monthly-navigate y m d))
+         (html:div
+          :id "left-pane"
+          (html:div
+           :id "archive-pane"
+           (navigate-bar y m d)
+           (html:div :id "archive-view" content)
+           (navigate-bar y m d))))))))
+
+(define (navigate-bar y m d)
+  (html:div
+   :class "archive-navigate"
+   (html:table
+    (html:tr
+     (html:td :class "to-prev" (day-link y m d -1 "<< ~a"))
+     (html:td :class "to-room" (html:a :href +room-url+ "Back to the chat room"))
+     (html:td :class "to-next" (day-link y m d +1 "~a >>"))))))
+
+(define (day-link y m d inc fmtstr)
+  (let* ([the-day  (date+ (date y m d) inc)]
+         [y (date-year the-day)]
+         [m (date-month the-day)]
+         [d (date-day the-day)])
+    (if (file-exists? (dpath y m d))
+      (html:a :href (apath y m d) (format fmtstr (ymd y m d)))
+      (html:p :style "color:#fff" (format fmtstr (ymd y m d))))))
+
+(define (monthly-navigate y m d)
+  (html:div
+   :class "monthly-navigate"
+   `(,(if (= m 1) (month-link (- y 1) 12 #f) (month-link y (- m 1) #f))
+     ,(html:p :class "month-link-active" (format "~4,'0d/~2,'0d" y m))
+     ,(html:ul (monthly-entries y m d))
+     ,(if (= m 12) (month-link (+ y 1) 1 #t) (month-link y (+ m 1) #t)))))
+
+(define (month-link y m head?)
+  (let1 ym (format "~4,'0d/~2,'0d" y m)
+    (if (file-exists? (build-path +datadir+ ym))
+      (html:p :class "month-link"
+              (html:a :href (if head? (apath y m 1) (apath y m (last-day y m)))
+                      ym))
+      "")))
+
+(define (monthly-entries y m d)
+  (let1 dir (format "~a/~4,'0d/~2,'0d/" +datadir+ y m)
+    (if (file-is-directory? dir)
+      (map (lambda (cnt)
+             (let1 d1 (x->integer (rxmatch->string #/(\d+)\.cnt$/ cnt 1))
+               (html:li
+                :class (if (= d d1) "navigate-today" "navigate-other")
+                (html:a :href (apath y m d1)
+                        #`",(ymd y m d1) (,(x->integer (file->string cnt)))"))))
+           (directory-list dir :filter #/\.cnt$/ :add-path? #t))
+      '())))
+
+(define (apath y m d) (format "~a/~4,'0d/~2,'0d/~2,'0d" +archive-url+ y m d))
+(define (ymd   y m d) (format "~4,'0d/~2,'0d/~2,'0d" y m d))
+(define (dpath y m d) (build-path +datadir+ #`",(ymd y m d).dat"))
+
+(define (date y m d) (make-date 0 0 0 0 d m y 0))
+(define (date+ date days)
+  (modified-julian-day->date (+ (date->modified-julian-day date) days) 0))
+
+(define (last-day y m)
+  (date-day (date+ (if (= m 12) (date (+ y 1) 1 1) (date y (+ m 1) 1)) -1)))
+
+;;;===================================================================
+
+(select-module user)
+(import chaton.browser)
+(define main run-browser)
+
+;; Local variables:
+;; mode: scheme
+;; end:
