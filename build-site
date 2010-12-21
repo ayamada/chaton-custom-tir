@@ -47,6 +47,8 @@
       (sed "badge.html"    (build-path docdir "badge.html") nconf)
       (sed "htaccess"      (build-path docdir ".htaccess") nconf)
       (sed "chaton.css"    (build-path docdir "chaton.css") nconf)
+      (sed "chaton-search"  (build-path docdir "s") nconf)
+      ;(sed "chaton-mobile"  (build-path docdir "m") nconf)
       (cond
        [chaton-js-update?
         (remove-old-chaton-js docdir)

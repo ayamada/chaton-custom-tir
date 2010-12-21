@@ -28,11 +28,40 @@
   (cgi-header
    :location (apath (date-year date) (date-month date) (date-day date))))
 
+;; archfileを読み込む際に指定すべきindex値を、算出して取り出す。
+;; これは要は、「最新のファイル」(＝シンボリックリンクのファイル)は、
+;; 日付判定の厳密化に対応する為に、該当ログファイルの「今日のもののみ」を
+;; 取り出す必要がある為。
+;; 上記以外の場合、このindex値は0でよい(既にその日のログだけになったいるので)。
+(define (get-archfile-idx archfile y m d)
+  ;; 「今日のファイル」のみidxをずらす必要がある、それ以外は0でok
+  (if (not (file-is-symlink? archfile))
+    0
+    (chaton-with-shared-locking
+      (cut call-with-input-file
+        archfile
+        (lambda (p)
+          (let next ((prev-idx 0))
+            (let1 line (read-line p)
+              (if (eof-object? line)
+                #f ; 一件も無し。空である事を示す為に#fを返す(通常はarchfileが存在する場合、内容が空の事はない為、chaton-render-from-fileがエラーになってしまう為)
+                (receive (nick sec usec text ip) (decompose-entry (read-from-string line))
+                  (let* ((date (time-utc->date (make <time> :second sec)))
+                         (y2 (date-year date))
+                         (m2 (date-month date))
+                         (d2 (date-day date))
+                         )
+                    (if (and (= y y2) (= m m2) (= d d2))
+                      prev-idx
+                      (next (port-tell p)))))))))))))
+
 (define (emit-archfile y m d)
   (let1 archfile (dpath y m d)
-    (make-page y m d (if (file-exists? archfile)
-                          (chaton-render-from-file archfile 0 #f)
-                          ""))))
+    (make-page y m d (or
+                       (and-let* ((_ (file-exists? archfile))
+                                  (idx (get-archfile-idx archfile y m d)))
+                         (chaton-render-from-file archfile idx #f))
+                       (html:div :style "text-align: center" "(データがありません)")))))
 
 (define (make-page y m d content)
   (let1 title (format "~a > Archives > ~a" *room* (ymd y m d))
@@ -56,12 +85,12 @@
                     "Built on "
                     (html:a :href "http://practical-scheme.net/chaton/"
                             "Chaton"))
-          (html:div :class "room-links"
-                    (html:a :href "@@httpd-url@@@@url-path@@search.html" "Search")
-                    " | "
-                    (html:a :href "@@httpd-url@@@@url-path@@badge.html" "Badge")
-                    " | "
-                    (html:a :href "http://practical-scheme.net/chaton/doc/Tools" "Tools"))
+          ;(html:div :class "room-links"
+          ;          (html:a :href "@@httpd-url@@@@url-path@@search.html" "Search")
+          ;          " | "
+          ;          (html:a :href "@@httpd-url@@@@url-path@@badge.html" "Badge")
+          ;          " | "
+          ;          (html:a :href "http://practical-scheme.net/chaton/doc/Tools" "Tools"))
           (monthly-navigate y m d))
          (html:div
           :id "left-pane"
@@ -90,12 +119,34 @@
       (html:p :style "color:#fff" (format fmtstr (ymd y m d))))))
 
 (define (monthly-navigate y m d)
-  (html:div
-   :class "monthly-navigate"
-   `(,(if (= m 1) (month-link (- y 1) 12 #f) (month-link y (- m 1) #f))
-     ,(html:p :class "month-link-active" (format "~4,'0d/~2,'0d" y m))
-     ,(html:ul (monthly-entries y m d))
-     ,(if (= m 12) (month-link (+ y 1) 1 #t) (month-link y (+ m 1) #t)))))
+  (let* ((today (current-date))
+         (today-y (date-year today))
+         (today-m (date-month today))
+         (today-d (date-day today))
+         (is-today (and
+                     (= y today-y)
+                     (= m today-m)
+                     (= d today-d)))
+         )
+    (define (month-link-active yyyy mm)
+      (html:p :class "month-link-active" (format "~4,'0d/~2,'0d" yyyy mm)))
+    (html:div
+      :class "monthly-navigate"
+      `(,(if (= m 1) (month-link (- y 1) 12 #f) (month-link y (- m 1) #f))
+         ,(month-link-active y m)
+         ,(html:ul (monthly-entries y m d))
+         ,(if (= m 12) (month-link (+ y 1) 1 #t) (month-link y (+ m 1) #t)))
+      (if (and
+            (= y today-y)
+            (= m today-m))
+        '()
+        (month-link-active today-y today-m))
+      (html:ul
+        (html:li :class (if is-today "navigate-today" "navigate-other")
+                 (html:a :href (apath today-y today-m today-d)
+                         #`",(ymd today-y today-m today-d) (今日)"
+                         ))))
+    ))
 
 (define (month-link y m head?)
   (let1 ym (format "~4,'0d/~2,'0d" y m)
@@ -137,3 +188,4 @@
 ;; Local variables:
 ;; mode: scheme
 ;; end:
+;; vim:set ft=scheme:

@@ -62,8 +62,8 @@
     queries))
 
 (use gauche.process)
-(define (get-directory-files path)
-  ;; TODO: findに頼らず、自力で取得するようにする
+(define (get-directory-files-rec path)
+  ;; TODO: findコマンドに頼らず、自力で取得するようにする
   (process-output->string-list
     `(find ,path)
     :error "/dev/null"))
@@ -86,7 +86,7 @@
                                (#/\d\d\d\d\/\d\d\/\d\d\.dat$/ path))
                              (reverse
                                (sort
-                                 (get-directory-files +datadir+))))
+                                 (get-directory-files-rec +datadir+))))
       (define (get-sorted-all-lines-from-file file)
         (let* ((symlink? (file-is-symlink? file))
                (locker (if symlink?
@@ -134,14 +134,6 @@
                              (if (match-queries? (car lines))
                                (cons (car lines) result2)
                                result2)))))))))))
-
-(define (expand-query-textboxes queries)
-  (tree->string
-    (map
-      (lambda (index)
-        (let1 val (list-ref queries index "")
-          (format "<li><input type=\"text\" name=\"q\" size=\"50\" value=\"~a\" /></li>" val)))
-      (iota *number-of-searchbox*))))
 
 (define (expand-results queries results)
   (cond
@@ -203,15 +195,63 @@
         (get-keyword key keywords (m))))))
 
 (define (the-page queries results)
-  (let* ((html-src (file->string "search.html"))
-         (query-textboxes-html (expand-query-textboxes queries))
-         (results-html (expand-results queries results))
-         (html-result (fill-html-src html-src
-                                     :query-textboxes query-textboxes-html
-                                     :results results-html
-                                     ))
-         )
-    html-result))
+  (let ()
+    (html:html
+      (html:head
+        (html:title "Chaton " @@room-name/escd@@ " &gt; Search")
+        (html:link :href "@@httpd-url@@@@url-path@@chaton.css" :rel "Stylesheet"
+                   :type "text/css")
+        (html:script :src "@@prototype-url@@" :type "text/javascript"))
+      (html:body
+        :id "the-body"
+        ;; Right pane -------------
+        (html:div
+          :id "right-pane"
+          ;; Title ------------------
+          (html:h1 :id "room-title"
+                   (html:img :class "room-icon" :src "@@icon-url@@" :align "absmiddle" :alt "")
+                   (html:br)
+                   @@room-name/escd@@)
+          ;(html:div :class "room-description" @@room-description/escd@@)
+          (html:div
+            (html:p :class "search-navigate"
+                    (html:a :href "@@httpd-url@@@@url-path@@"
+                            "Return to the chat room"))
+            (html:p :class "search-navigate"
+                    (html:a :href "@@httpd-url@@@@url-path@@a/today"
+                            "Read archives")))
+          )
+        ;; Left pane --------------
+        (html:div
+          :id "left-pane"
+          (html:div
+            :class "search-box"
+            (html:form
+              :action "@@httpd-url@@@@url-path@@s"
+              :method "post"
+              :id "search-form"
+              (html:div "検索単語：")
+              (html:ul
+                (map
+                  (lambda (index)
+                    (let1 val (list-ref queries index "")
+                      (html:li
+                        (html:input
+                          :type "text"
+                          :name "q"
+                          :size "50"
+                          :value val))))
+                  (iota *number-of-searchbox*)))
+              (html:div
+                (html:input
+                  :type "submit"
+                  :name "_mb"
+                  :id "search-button"
+                  :value "検索"))))
+          (html:div
+            (expand-results queries results))
+          )
+        ))))
 
 ;;;===================================================================
 

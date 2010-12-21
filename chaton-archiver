@@ -108,7 +108,7 @@
          (sys-rename +current-tmp+ +current-file+)]))
 
 (define (daily-log-path dis)
-  (let1 tm (sys-gmtime dis)
+  (let1 tm (get-systime dis)
     (build-path +datadir+ (format "~4,'0d/~2,'0d/~2,'0d.dat"
                                   (+ (ref tm'year) 1900)
                                   (+ (ref tm'mon) 1)
@@ -142,7 +142,8 @@
          (write-daily-entry entries dis))
        (truncate-current entries today-dis)
        (mklink (daily-log-path today-dis))
-       (mklink (daily-log-path (dis+ today-dis 1)))))))
+       ;(mklink (daily-log-path (dis+ today-dis 1)))
+       ))))
 
 (define (mklink daily-file)
   (cond [(file-exists? daily-file)
@@ -212,7 +213,7 @@
 
 ;; Returns unix time of the beginning of the day (in UTC) when SECONDS is in.
 (define (date-in-seconds seconds)
-  (let1 tm (sys-gmtime seconds)
+  (let1 tm (get-systime seconds)
     (make-dis (+ (ref tm 'year) 1900) (+ (ref tm 'mon) 1) (ref tm 'mday))))
 
 ;; Returns unix time of the beginning of the day Y/M/D.

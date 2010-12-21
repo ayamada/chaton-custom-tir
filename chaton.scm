@@ -20,6 +20,10 @@
 
           chaton-alist->stree
 
+          decompose-entry
+          make-anchor-string
+          make-permalink
+
           +room-url+ +archive-url+
           
           +datadir+ +current-file+ +sequence-file+
@@ -30,6 +34,8 @@
           +docdir+ +status.js+ +status.scm+ +index.rdf+
 
           +show-stack-trace+
+
+          get-systime
           
           with-output-to-file))
 (select-module chaton)
@@ -124,7 +130,7 @@
                    (html:div
                     :class "entry-header"
                     (html:span :class "timestamp"
-                               (sys-strftime "%Y/%m/%d %T %Z" (sys-localtime sec)))
+                               (sys-strftime "%Y/%m/%d %T %Z" (get-systime sec)))
                     (html:span :class "chatter" nick)))
                 ,(html:a :class "permalink-anchor"
                          :id #`"anchor-,anchor-string"
@@ -163,7 +169,7 @@
 (define (make-permalink sec anchor)
   (build-path +archive-url+
               (format "~a#~a"
-                      (sys-strftime "%Y/%m/%d" (sys-gmtime sec))
+                      (sys-strftime "%Y/%m/%d" (get-systime sec))
                       anchor)))
 
 (define (html-format-entry entry-text anchor-string)
@@ -275,6 +281,11 @@
 ;;;
 ;;;  Misc. Utility
 ;;;
+
+(define (get-systime sec)
+  ;(sys-gmtime sec)
+  (sys-localtime sec)
+  )
 
 ;; This feature should be built-in!
 

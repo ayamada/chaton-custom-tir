@@ -1,10 +1,12 @@
-body { margin: 0; padding: 0; }
-#room-title { margin: 10pt 10pt -20pt 10pt; 
-              font-size: 150%; font-family: Sans, Ariel, Helvetica; }
+@charset "utf-8";
+
+body { margin: 0; padding: 0; font-family: 'メイリオ',Meiryo; }
+#room-title { margin: 10pt 10pt 10pt 10pt;
+              font-size: 150%; font-family: Times, Sans, Ariel, Helvetica; }
 
 #right-pane { display: inline; float: right; width: 200px; }
 #right-pane > div { padding-right: 10px; }
-#right-pane .chaton-logo { text-align: right; }
+#right-pane .chaton-logo { margin: 10px 10px 10px 10px; text-align: right; }
 #right-pane .room-description { padding-top: 15px; font-size: 90%; }
 #right-pane .room-links { padding-top: 15px; text-align: right; }
 
@@ -45,7 +47,7 @@ div.monthly-navigate { margin:10px 0 10px 0; padding: 0; }
 .monthly-navigate li { list-style-type: none; padding-left: 15px; }
 .monthly-navigate .navigate-today { background-color: #fee; }
 
-.search-box  { margin: 3em 0 3em 0; padding: 0; }
+.search-box  { margin: 0 0 0 0; padding: 0; }
 .search-area-url { font-family: mono, courier; }
 .search-box p.search-area { margin: 0; padding: 0 0 0 30px; }
 .search-navigate { margin: 0; padding: 0; text-align: right; }

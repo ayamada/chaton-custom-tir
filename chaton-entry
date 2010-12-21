@@ -37,7 +37,10 @@
 
 (define (emit-content cid)
   (if cid
-    `(,(cgi-header :content-type "text/html; charset=utf-8")
+    `(,(cgi-header :content-type "text/html; charset=utf-8"
+                   :pragma "no-cache"
+                   :cache-control "no-cache"
+                   )
       ,(the-page cid))
     `(,(cgi-header :status "503" :content-type "text/plain; charset=utf-8")
       "Service Temporarily Unavailable")))
@@ -53,25 +56,34 @@
     (html:script :src "@@httpd-url@@@@url-path@@@@chaton-js@@"
                  :type "text/javascript"))
    (html:body :id "the-body" :onload "initMainBody();"
-    ;; Title ------------------
-    (html:h1 :id "room-title"
-     (html:img :class "room-icon" :src "@@icon-url@@" :align "absmiddle" :alt "")
-     @@room-name/escd@@)
     ;; Right pane -------------
     (html:div :id "right-pane"
+      ;; Title ------------------
+      (html:h1 :id "room-title"
+       (html:img :class "room-icon" :src "@@icon-url@@" :align "absmiddle" :alt "")
+       (html:br)
+       @@room-name/escd@@)
+     (html:div :class "room-description" @@room-description/escd@@)
+     ;(html:div :class "room-description"
+     ;          "改造中"
+     ;          (html:br)
+     ;          "「Session expired」と出た時は一旦ブラウザを閉じてから開き直してください"
+     ;          )
+     ;(html:div :class "room-links"
+     ; (html:a :href "@@httpd-url@@@@url-path@@search.html" "Search")
+     ; " | "(html:a :href "@@httpd-url@@@@url-path@@badge.html" "Badge")
+     ; " | "(html:a :href "http://practical-scheme.net/chaton/doc/Tools" "Tools"))
      (html:div :class "chaton-logo"
       "Built on "(html:a :href +chaton-url+ "Chaton"))
-     (html:div :class "room-description" @@room-description/escd@@)
-     (html:div :class "room-links"
-      (html:a :href "@@httpd-url@@@@url-path@@search.html" "Search")
-      " | "(html:a :href "@@httpd-url@@@@url-path@@badge.html" "Badge")
-      " | "(html:a :href "http://practical-scheme.net/chaton/doc/Tools" "Tools"))
      )
     ;; Left pane --------------
     (html:div :id "left-pane"
      (html:div :id "navigation"
-      (html:a :href "a/yesterday" "Read Archive")
-      " | "(html:a :href "@@httpd-url@@@@url-path@@var/index.rdf" "RSS"))
+      (html:a :href "a/today" "Read Archive")
+      " | "(html:a :href "@@httpd-url@@@@url-path@@var/index.rdf" "RSS")
+      " | "(html:a :href "javascript:alert('準備中')" "携帯用(準備中)")
+      " | "(html:a :href "@@httpd-url@@@@url-path@@s" "Search")
+      )
      (html:div :id "view-frame-container"
       (html:iframe :src #`"@@httpd-url@@:@@comet-port@@/?c=,cid"
                    :id "view-frame"))

@@ -188,6 +188,7 @@
         [out (socket-output-port csock)])
     (write-tree `("HTTP/1.1 200 OK\r\n\
                    Content-type: text/html; charset=utf-8\r\n\
+                   Pragma: no-cache\r\n\
                    Cache-control: no-cache\r\n\
                    Content-length: ",(string-size s)"\r\n\r\n",s)
                 out)
@@ -261,6 +262,7 @@
         [out (socket-output-port csock)])
     (write-tree `("HTTP/1.1 200 OK\r\n\
       Content-type: application/",(if sexp? "x-sexpr" "json")"; charset=utf-8\r\n\
+      Pragma: no-cache\r\n\
       Cache-control: no-cache\r\n\
       Content-length: ",(string-size packet)"\r\n\r\n",packet) out)
     (flush out)))
@@ -301,6 +303,8 @@
 (define (emit-general csock status ctype content)
   (write-tree `("HTTP/1.1 ",status"\r\n\
                 Content-type: ",ctype"; charset=utf-8\r\n\
+                Pragma: no-cache\r\n\
+                Cache-control: no-cache\r\n\
                 Content-length: ",(string-size content)"\r\n\r\n",content)
               (socket-output-port csock))
   (raise 'processed))
