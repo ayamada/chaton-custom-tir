@@ -1,7 +1,7 @@
 * 基本情報
 - これは、自分用に改造したChatonです。
 - Chatonについての基本情報は、以下を見てください。
--- README.orig (本来のREADMEです。github用に置き替えてしまいましたが)
+-- README.orig (Chaton本来のREADME)
 -- http://practical-scheme.net/chaton/
 - この改造の元になったChatonのバージョンは、以下の通りです。
 -- http://chaton.svn.sourceforge.net/viewvc/chaton/Chaton/trunk/
@@ -26,7 +26,7 @@
 
 
 * 追加されたファイル
-- README-custom このファイル
+- README.orig 元々のChatonのREADME
 - chaton-search 前述の、組み込みのログ検索cgi
 - chaton-mobile 前述の、JavaScript非対応ブラウザの為の簡易クライアントcgi
 
