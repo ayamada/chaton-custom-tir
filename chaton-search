@@ -1,0 +1,225 @@
+#!/usr/bin/env gosh
+;; TODO: 他の各ファイルも参考にする事
+;;       (履歴表示系、POST受け取り系)
+
+(add-load-path "@@server-data-dir@@")
+
+(define-module chaton.search
+  (use www.cgi)
+  (use rfc.http)
+  (use text.html-lite)
+  (use text.tree)
+  (use file.util)
+  (use srfi-1)
+  (use gauche.charconv)
+  (use srfi-19)
+  (use chaton)
+  (export search-main))
+(select-module chaton.search)
+
+(define *number-of-searchbox* 3)
+(define *max-rows-of-result* 100)
+
+(define (search-main args)
+  (set! (port-buffering (current-error-port)) :line)
+  (cgi-main (lambda (params) (emit-content params))
+            :on-error
+            (and +show-stack-trace+
+                 (lambda (e)
+                   `(,(cgi-header)
+                     ,(html:pre
+                       (html-escape-string
+                        (call-with-output-string
+                          (cut with-error-to-port <> (cut report-error e)))))))))
+  0)
+
+(define (emit-content params)
+  (let* ((queries (get-queries params))
+         (results (queries->results queries)))
+    (list
+      (cgi-header :content-type "text/html; charset=utf-8"
+                  :pragma "no-cache"
+                  :cache-control "no-cache"
+                  )
+      (the-page queries results))))
+
+(define (get-queries params)
+  (let* ((_mb (cgi-get-parameter "_mb" params :default "日本語"))
+         (params-encoding (ces-guess-from-string _mb "*JP")))
+    (define (_mb-converter str)
+      (ces-convert str params-encoding))
+    (filter
+      (lambda (str)
+        (not (string=? str "")))
+      (cgi-get-parameter "q" params
+                         :list #t
+                         :convert _mb-converter))))
+
+(define (queries->regexps queries)
+  (map
+    (lambda (query)
+      (string->regexp (regexp-quote query)))
+    queries))
+
+(use gauche.process)
+(define (get-directory-files path)
+  ;; TODO: findに頼らず、自力で取得するようにする
+  (process-output->string-list
+    `(find ,path)
+    :error "/dev/null"))
+
+(define (queries->results queries)
+  ;; 以下のような構造体を複数個、listとして返す
+  ;; '(リンク構築用情報 . ヒットした行データそのもののS式表現)
+  ;; 元ファイルの構造は以下の通り
+  ;; '("名前" (epoch usec) "本文" "111.222.33.44")
+  (let1 regexps (queries->regexps queries)
+    (define (match-queries? line)
+      (receive (nick sec usec text ip) (decompose-entry line)
+        (every
+          (lambda (re)
+            (re text))
+          regexps)))
+
+    (let1 sorted-all-files (filter
+                             (lambda (path)
+                               (#/\d\d\d\d\/\d\d\/\d\d\.dat$/ path))
+                             (reverse
+                               (sort
+                                 (get-directory-files +datadir+))))
+      (define (get-sorted-all-lines-from-file file)
+        (let* ((symlink? (file-is-symlink? file))
+               (locker (if symlink?
+                         chaton-with-shared-locking
+                         (lambda (thunk) (thunk))))
+               (r (map read-from-string (locker (cut file->string-list file)))))
+          (reverse
+            (if (not symlink?)
+              r
+              (let* ((today (current-date))
+                     (y (date-year today))
+                     (m (date-month today))
+                     (d (date-day today))
+                     )
+                (let next ((left r))
+                  (if (null? left)
+                    '()
+                    (receive (nick sec usec text ip) (decompose-entry (car left))
+                      (let* ((date (time-utc->date (make <time> :second sec)))
+                             (y2 (date-year date))
+                             (m2 (date-month date))
+                             (d2 (date-day date))
+                             )
+                        (if (and (= y y2) (= m m2) (= d d2))
+                          left
+                          (next (cdr left))))))))))))
+      ;; ファイル単位でループ検索する
+      (let next-file ((files sorted-all-files)
+                      (result '()))
+        (if (null? files)
+          result
+          (let1 sorted-all-lines (get-sorted-all-lines-from-file (car files))
+            ;; 行単位でループ検索する
+            (let next-line ((lines sorted-all-lines)
+                            (result2 result))
+              (cond
+                ;; 結果が最大数+1に達した
+                ;; (超過チェックを行う為に、+1した結果を返す)
+                ((< *max-rows-of-result* (length result2)) result2)
+                ;; 全行検索した。次のファイルへ
+                ((null? lines) (next-file (cdr files) result2))
+                ;; この行を検査し、次の行へ
+                (else
+                  (next-line (cdr lines)
+                             (if (match-queries? (car lines))
+                               (cons (car lines) result2)
+                               result2)))))))))))
+
+(define (expand-query-textboxes queries)
+  (tree->string
+    (map
+      (lambda (index)
+        (let1 val (list-ref queries index "")
+          (format "<li><input type=\"text\" name=\"q\" size=\"50\" value=\"~a\" /></li>" val)))
+      (iota *number-of-searchbox*))))
+
+(define (expand-results queries results)
+  (cond
+    ((null? queries) "入力欄に検索したい単語を入力してください(AND検索です)。")
+    ((null? results) "一件もみつかりませんでした")
+    (else
+      (let* ((regexps (queries->regexps queries))
+             (re-true (string->regexp
+                        (tree->string
+                          (list
+                            "("
+                            (string-join
+                              (map regexp->string regexps)
+                              ")|(")
+                            ")"))))
+             (over-rows? (< *max-rows-of-result* (length results)))
+             (results-true (reverse
+                             (if over-rows? (cdr results) results)))
+             )
+        (tree->string
+          (list
+            (if over-rows?
+              (html:p
+                (html:strong "検索結果が"
+                             *max-rows-of-result*
+                             "件を越えています。"
+                             (html:br)
+                             "もう少し検索条件を絞り込んでみてください。"))
+              '())
+            (html:ol
+              (map
+                (lambda (line)
+                  (receive (nick sec usec text ip) (decompose-entry line)
+                    (define (render-text str)
+                      (html:a ;:class "permalink-anchor"
+                              :href (make-permalink
+                                      sec (make-anchor-string sec usec))
+                              ;; TODO: regexpsを使って、色付け等をしたい
+                              (html-escape-string str)))
+                    (list
+                      (html:div
+                        :class "entry-header"
+                        (html:span :class "timestamp"
+                                   (sys-strftime "%Y/%m/%d %T %Z" (sys-localtime sec)))
+                        (html:span :class "chatter" nick))
+                      (if (#/\n/ text)
+                        (html:pre :class "entry-multi"
+                                  (render-text text))
+                        (html:div :class "entry-single"
+                                  (html:span (render-text text)))))))
+                results-true))))))))
+
+(define (fill-html-src html-src . keywords)
+  (regexp-replace-all
+    #/\#\#([\-\w]+?)\#\#/
+    html-src
+    (lambda (m)
+      (let1 key (make-keyword (m 1))
+        (get-keyword key keywords (m))))))
+
+(define (the-page queries results)
+  (let* ((html-src (file->string "search.html"))
+         (query-textboxes-html (expand-query-textboxes queries))
+         (results-html (expand-results queries results))
+         (html-result (fill-html-src html-src
+                                     :query-textboxes query-textboxes-html
+                                     :results results-html
+                                     ))
+         )
+    html-result))
+
+;;;===================================================================
+
+(select-module user)
+(import chaton.search)
+(define main search-main)
+
+;; Local variables:
+;; mode: scheme
+;; end:
+;; vim:set ft=scheme:
