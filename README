@@ -32,12 +32,7 @@
 
 
 * TODO
-- chaton-searchのテンプレートにsearch.htmlを使わないようにする
-  (テンプレートを自前で持つか、chaton-browserのものを流用する)
 - chaton-mobileの作成
-- chaton-search, chaton-mobileは単独でも追加できるようにする
--- chaton.scmを無改造の状態に戻し、必要な手続きはimportで直に取り出すようにする
--- 日時をGMTで扱うかlocaltimeで扱うかを、*hoge*系の変数で設定できるようにする
 - chaton-searchの検索対象は、行単位ではなく、日単位とする？
 -- スイッチで動作を変更できるべきでは
 - chaton-entryの、元々tools等のリンクがあった場所に、*.conf設定で、
@@ -48,6 +43,7 @@
 - 部屋別にbasic認証をかけたりかけなかったりできるような、htaccess制御
 - chaton-searchでfindを使わないように直す
 - archiveは、今日の日付のログ表示時のみno-cache系のヘッダを出力する
+-- 判定条件は、シンボリックリンクか否かだけでok
 - client/chaton/client.scm の chaton-permalink の扱い
 -- これは要するに、外部のtwitterブリッジ等から利用される手続きで、
    サーバにある chaton.scm とは完全に分離している。
