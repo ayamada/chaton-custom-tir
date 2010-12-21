@@ -1,165 +1,87 @@
-Chaton (pronounced like [sha-ton]) is a comet-based webchat server.
-It is a collection of CGI scripts, daemon programs and other scripts.
-
-Prerequisites:
-
-- Make sure you can run a daemon process on your server.
-  It might be difficult if you're using shared hosting
-  service.
-
-- It is also desirable that you can make your own crontab.
-
-- The server should also run httpd that is capable to run
-  CGI.  The server should be configured so that you can
-  do SetHandler in .htaccess file.
-
-- Gauche 0.8.14 or later.  You can install it under
-  your home directory.
+* 基本情報
+- これは、改造されたChatonです。
+- Chatonについての基本情報は、以下を見てください。
+-- README
+-- http://practical-scheme.net/chaton/
+- この改造の元になったChatonのバージョンは、以下の通りです。
+-- http://chaton.svn.sourceforge.net/viewvc/chaton/Chaton/trunk/
+   の、 revision 154
+- この改造自体は、以下のURLに置かれます。
+-- https://github.com/ayamada/chaton-custom-tir
 
 
-Files:
-
-  The following files are scripts that cooperates to make Chaton
-  work:
-
-    chaton-entry    This is a CGI script invoked when the room
-          is accessed via web browsers.  This script creates the
-          "outer frame" of the chat room page, and make the "inner
-          frame" connect to the Comet server.
-
-    chaton-viewer   This is the Comet server responsible to
-          distribute room contents.   It must run as a daemon.
-          Currently you have to run one daemon process per
-          one chatroom.  The actual installed script is named
-          'chaton-viewer-$ROOM', where $ROOM is the room name.
-
-    chaton-poster   This is a CGI script that handles message
-          posting.  The actual installed script is named
-          'chaton-poster-$ROOM'.
-
-    chaton-browser  This is a CGI script that handles browsing
-          message archives.  When installed, this script becomes
-          'a', for the sake of shorter permalinks.
-
-    chaton-archiver  This is a script file that archives message
-          logs.  This script must be run daily.
-
-    chaton-badge    This is a CGI script that generates "badge"
-          of the room.  When installed, this script becomes 'b',
-          for conciseness.
-
-    chaton-apilogin  This is a CGI script where the client programs
-          first contact through API.  When installed, this script
-          becomes 'apilogin'.
+* 主な変更内容
+- Read Archve の「本日のログ」の内容の厳密化/可視化
+- 各日付が内部ではGMTで扱われるようになっていたものを、
+  またlocaltimeへとデグレード
+  (前述のRead Archiveの日付の厳密化との整合性を取る為)
+- 組み込みのログ検索機能
+-- basic認証等をかけた為に、 search.html による外部の検索機能が
+   使えなくなってしまった為の代用品
+-- 単純な線形検索なので、ログが増えるにつれ重くなる
+- w3mや携帯端末等の、JavaScript制御のできないブラウザの為の簡易クライアントcgi
+- 一部の文章のローカライズ(というか単に追加文言を日本語で書いただけ)
+- 一部の見た目にのみ関わる調整(部屋名の位置変更、toolへのリンクを外す等)
+- その他細かい変更
 
 
- The following files are to consist the client-side contents:
-
-    chaton.js   The javascript that implements client-side operations.
-          The same file is read from both the outer content and
-          and from the content inside the iframe.
-          Upon installation, this file is renamed to 'chaton.XXXXXX.js'
-          where XXXXXX is a unique string, to avoid caching by
-          browsers.
-
-    chaton.css   The stylesheet.  Used by both the outer content
-          and the content inside the iframe.
-
-  Additionally, 'chaton.scm' implements common funcionalities used
-  among server-side scripts, and 'htaccess' is the skeleton of
-  '.htaccess' file for each room.
+* 追加されたファイル
+- README-custom このファイル
+- chaton-search 前述の、組み込みのログ検索cgi
+- chaton-mobile 前述の、JavaScript非対応ブラウザの為の簡易クライアントcgi
 
 
-Directory structure:
-
-  $BINDIR        A directory where server-side programs (chaton-viewer-*
-                 and chaton-archiver-*) will go.  You may want this
-                 directory to be in your PATH for the convenience,
-                 although not necessarily.
-
-  $DATADIR       A directory where the chat messages and other stuff
-                 are stored.  Recommended not to be under the directory
-                 visible via httpd.
-                 Each chatroom must have distinct $DATADIR.
-
-    $DATADIR/data   Subdirectory where message data goes into.  CGI
-                 scripts needs to write into this directory.
-
-    $DATADIR/data/current.dat   Current message data.  Typically it
-                 contains around one-day worth of postings.   The
-                 chaton-archiver script removes old messages from this
-                 and stores them to archived data.
-
-    $DATADIR/data/YYYY/MM/DD.dat  Archived data.   Created by
-                 chaton-archiver script.   Chaton-archiver also sets
-                 the today's data file as a symlink to the current.dat
-                 file.
-
-    $DATADIR/logs/comet.log  Access log file from the Comet server
-                 (chaton-viewer-*).
-
-    $DATADIR/logs/archive.log  Log from the archiver.
+* TODO
+- chaton-searchのテンプレートにsearch.htmlを使わないようにする
+  (テンプレートを自前で持つか、chaton-browserのものを流用する)
+- chaton-mobileの作成
+- chaton-search, chaton-mobileは単独でも追加できるようにする
+-- chaton.scmを無改造の状態に戻し、必要な手続きはimportで直に取り出すようにする
+-- 日時をGMTで扱うかlocaltimeで扱うかを、*hoge*系の変数で設定できるようにする
+- chaton-searchの検索対象は、行単位ではなく、日単位とする？
+-- スイッチで動作を変更できるべきでは
+- chaton-entryの、元々tools等のリンクがあった場所に、*.conf設定で、
+  説明文を入れられるようにする(仮)
+-- 現状の room-description での説明文はrss等にも入ってしまう、
+   「chat部屋自体の詳細」なので、
+-- Read Archive 等のリンクもこの扱いにしてしまう？
+- 部屋別にbasic認証をかけたりかけなかったりできるような、htaccess制御
+- chaton-searchでfindを使わないように直す
+- archiveは、今日の日付のログ表示時のみno-cache系のヘッダを出力する
+- client/chaton/client.scm の chaton-permalink の扱い
+-- これは要するに、外部のtwitterブリッジ等から利用される手続きで、
+   サーバにある chaton.scm とは完全に分離している。
+   (例えば別サーバ上でプロセスが動いたりする可能性があるので、
+    一緒にはできない)
+   しかし、だからといってGMTにするのも微妙。
+   (上のローカライズで、サーバの0時単位で、ログ(URL)を区切ってしまっている為)
+-- とりあえず自分的には、このAPIは使わないという事で、
+   GMTのままにしておく事にする
 
 
-  $HTDOCSDIR     A directory where the content accessed by browsers
-                 will go.   Each chatroom must have distinct $HTDOCSDIR.
-                 The httpd should honor .htaccess in this directory.
-
-    $HTDOCSDIR/.htaccess     Some DirectoryIndex and SetHandler directives.
-
-    $HTDOCSDIR/entry         The main entry CGI.  We use DirectoryIndex so
-                 that this script is kicked when the client access
-                 this directory.
-
-    $HTDOCSDIR/chaton.css, $HTDOCSDIR/chaton.XXXXXX.js
-                 CSS and javascript files.
-
-    $HTDOCSDIR/chaton-poster-$ROOM   A CGI script to post the message.
-
-    $HTDOCSDIR/a   A CGI script to browse the archived messages.  From
-                 the web browsers, archived messages are accessed
-                 as 'http://yourdomain.example.com/.../$ROOM/a/YYYY/MM/DD'
-
-    $HTDOCSDIR/var/status.{js,scm}  The comet server periodically dumps
-                 the room status into these files.  You can poll these files
-                 to find out the current status of the room.
-                 See http://practical-scheme.net/chaton/doc?Retrieving%20Room%20Status
-                 for the details.
-
-Build a chat room:
-
-  To build a chat room, first you prepare configuration file.
-  Copy 'sample.conf' and follow the directions.
-
-  The 'sample.conf' file includes two auxiliary files, 'conf/site.conf'
-  and 'conf/appearance.conf'.   You MUST edit 'conf/site.conf' to reflect
-  your site settings; the default values are useless to you.  On the
-  other hand, you can leave 'conf/appearance.conf' as is if you don't
-  need to change it.
-
-  Other than those included .conf files, each chat room MUST have
-  distinct copy of configuration file.  Especially, make sure
-  that the room name, comet port number, url path, htdocs dir and
-  data dir are all unique for each chat room.
-
-  Once you prepare conf file, run build-site script:
-
-    gosh ./build-site yourroom.conf
-
-  This copies necessary files, with modifying them according to
-  the configuration settings.
-
-  For your convenience, you can list multiple conf files in the
-  file 'rooms', one per line.  Then simply the following command
-  runs build-site for every room you have.
-
-    make install
+* 改造方針
+- 上流が更新された際にバージョンアップしやすいように、
+  なるべく元ファイルの状態を温存する
+- 上流へ還元できる形であるにこした事はないが、そこまではがんばらない
+-- 拡張した部分では日本語を使ってok
 
 
-Run a chat room:
+* chaton-search, chaton-mobileのみを導入する際の注意点
+- build-site と htaccess も持っていく/変更する必要があります
+-- build-site は、make install時にcharon-search等を反映する為に必要
+-- htaccess は、新たに追加になったファイルをcgi動作させる為に必要
+- 各ファイルの、日付判定厳密化の為の有効無効フラグを書き換える必要があるかも
+-- 詳細はあとでまとめる
+- (optional) chaton-entryを書き換える
+  (chaton-search, chaton-mobileへのリンクを入れる)
 
-  You have to run chaton-viewer-$ROOM as a background process.
 
-  You also have to set up chaton-archiver-$ROOM to be executed
-  once a day, probably using cron.
+* その他のメモ
+- 本体のバージョンが上がった際には、git rebaseでバージョンアップできるかも
+  (できないかも)
+- Chatonは、内部encodingがutf-8のGaucheでないと動きません。
+  (少なくとも、最初に元にしたrevision 154では)
+  いい機会なので、環境のutf-8化をしてしまいましょう。
+
+
 
