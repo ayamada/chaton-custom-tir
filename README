@@ -78,6 +78,12 @@
 - Chatonは、内部encodingがutf-8のGaucheでないと動きません。
   (少なくとも、最初に元にしたrevision 154では)
   いい機会なので、環境のutf-8化をしてしまいましょう。
+- Chatonのcomet serverを、特定ipだけlistenさせる事はちょっと改造すればできる。
+  しかし、80番をlistenするようにするにはroot権限が必要になる為、かなり困難。
+  (セキュリティを諦めてcomet serverのプロセスをrootで走らせるか、
+   apache等の他のhttpdのように、80番をlistenしてから権限を落としたり等の
+   工夫が必要になる)
+  もしそれをやる場合は、djbのtcpserverに中継させる方針がいいと思う。
 
 
 
