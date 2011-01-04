@@ -44,11 +44,11 @@
       (sed "chaton-entry"  (build-path docdir "entry") nconf)
       (sed "chaton-apilogin" (build-path docdir "apilogin") nconf)
       (sed "search.html"   (build-path docdir "search.html") nconf)
+      (sed "chaton-search" (build-path docdir "s") nconf)
       (sed "badge.html"    (build-path docdir "badge.html") nconf)
       (sed "htaccess"      (build-path docdir ".htaccess") nconf)
       (sed "chaton.css"    (build-path docdir "chaton.css") nconf)
-      (sed "chaton-search"  (build-path docdir "s") nconf)
-      ;(sed "chaton-mobile"  (build-path docdir "m") nconf)
+      (sed "chaton-mobile" (build-path docdir "m") nconf)
       (cond
        [chaton-js-update?
         (remove-old-chaton-js docdir)

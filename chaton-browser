@@ -144,7 +144,7 @@
       (html:ul
         (html:li :class (if is-today "navigate-today" "navigate-other")
                  (html:a :href (apath today-y today-m today-d)
-                         #`",(ymd today-y today-m today-d) (今日)"
+                         #`",(ymd today-y today-m today-d) (today)"
                          ))))
     ))
 

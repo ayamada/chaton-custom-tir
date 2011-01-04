@@ -44,6 +44,8 @@
       (the-page queries results))))
 
 (define (get-queries params)
+  ;; TODO: :defaultは#fにして、#fの場合はquery-stringを全部連結したものを採用
+  ;;       すべき。空文字列の時の対応もちゃんと書く事
   (let* ((_mb (cgi-get-parameter "_mb" params :default "日本語"))
          (params-encoding (ces-guess-from-string _mb "*JP")))
     (define (_mb-converter str)
@@ -230,6 +232,7 @@
               :action "@@httpd-url@@@@url-path@@s"
               :method "post"
               :id "search-form"
+              (html:input :type "hidden" :name "_mb" :value "日本語")
               (html:div "検索単語：")
               (html:ul
                 (map
@@ -245,7 +248,7 @@
               (html:div
                 (html:input
                   :type "submit"
-                  :name "_mb"
+                  ;:name "search"
                   :id "search-button"
                   :value "検索"))))
           (html:div

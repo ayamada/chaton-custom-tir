@@ -1,0 +1,175 @@
+#!/usr/bin/env gosh
+
+(add-load-path "@@server-data-dir@@")
+
+(define-module chaton.mobile
+  (use www.cgi)
+  (use rfc.http)
+  (use text.html-lite)
+  (use text.tree)
+  (use file.util)
+  (use srfi-1)
+  (export mobile-main))
+(select-module chaton.mobile)
+
+(define-constant +chaton-url+ "http://practical-scheme.net/chaton/")
+(define-constant +viewer+  "@@httpd-url@@:@@comet-port@@/")
+(define-constant +credential+ "@@server-data-dir@@auth")
+
+(define (mobile-main args)
+  (set! (port-buffering (current-error-port)) :line)
+  (cgi-main (lambda (params)
+              (emit-content (cgi-param-conv-jp params)))
+            :on-error
+            (and +show-stack-trace+
+                 (lambda (e)
+                   `(,(cgi-header)
+                     ,(html:pre
+                       (html-escape-string
+                        (call-with-output-string
+                          (cut with-error-to-port <> (cut report-error e)))))))))
+  0)
+
+(define (cgi-param-conv-jp params)
+  (let* ((_mb (cgi-get-parameter "_mb" params :default #f))
+         )
+    ;; TODO: _mbがない場合、params全部結合させたものを採用する
+    ;;       (それでもなかったらgauche-character-encodingで)
+    ;; TODO: この部分の処理はchaton-searchと共通なので、あとで
+    ;;       chaton.scm等に移動させる
+    ;; TODO: あとで実装する
+    params))
+
+(define (emit-content params)
+  ;; ディスパッチ
+  ;; 必要最低限、必要な分岐は以下の通り
+  ;; - 入力欄＋名前欄＋最近のログ
+  ;; - submit
+  ;; - 履歴(PCと共用でok？)
+  (let1 c (make-keyword (cgi-get-parameter "c" params :default ""))
+    (case c
+      ((:submit) (emit-content-submit params))
+      ;((:log) (emit-content-log params))
+      ;((:mode) (emit-content-mode params))
+      (else (emit-content-form params)))))
+
+(define (get-nick-from-cookie)
+  ;; Cookie: chaton-nickname=%u5C71%u7530%u592A%u90CE
+  (and-let* ((cookie-params (cgi-parse-parameters :query-string ""
+                                                  :merge-cookies #t))
+             (nick (cgi-get-parameter "chaton-nickname"
+                                      cookie-params
+                                      :default #f))
+             )
+    ;; TODO: charsetやその他のdecodeが必要な筈
+    ;;       場合によってはブラウザによる差異を吸収する必要あり
+    ;; TODO: ブラウザによる差異を考慮する場合、m自身が名前を保持するcookieは
+    ;;       別エントリにした方がいいのでは？
+    ;;       (mが記録したcookieをブラウザが読めるとは限らない為)
+    ;;       しかし、その場合、mで記憶した名前とentryで記憶した名前は
+    ;;       別扱いになるという事になる。ちょっと微妙。
+    ;;       とりあえずブラウザによる差異が存在するかどうかぐらいは調べる事。
+    ;;       - 調べた。JavaScriptの組み込みのescape(), unescape()関数による。
+    ;;         よって、これら互換の入出力にすればok。
+    ;;         firefoxもieも、%uXXXX形式に対応しているようだ。
+    ;; ( http://www.openspc2.org/JavaScript/escape/index.html のUTF-8の項目)
+    nick))
+
+(define (emit-content-form params)
+  (let ((nick (or
+                (cgi-get-parameter "n" params :default #f)
+                (get-nick-from-cookie)
+                ""))
+        )
+    (list
+      (cgi-header :content-type "text/html; charset=utf-8"
+                  :pragma "no-cache"
+                  :cache-control "no-cache"
+                  )
+      (html:html
+        (html:head
+          (html:title "Chaton "@@room-name/escd@@)
+          (html:link :href "@@httpd-url@@@@url-path@@chaton.css" :rel "Stylesheet"
+                     :type "text/css")
+          (html:link :href "@@httpd-url@@@@url-path@@var/index.rdf" :rel "Alternate" :type "application/rss+xml")
+          ;(html:script :src "@@prototype-url@@" :type "text/javascript")
+          ;(html:script :src "@@httpd-url@@@@url-path@@@@chaton-js@@"
+          ;             :type "text/javascript")
+          ;; TODO: 簡単なJavaScriptでfocusを入力欄にする
+          )
+        (html:body :id "the-body"
+                   (the-form nick)
+                   (html:hr)
+                   (the-recentlog)
+                   (the-footer)
+                   )))))
+
+(define (the-form nick)
+  ;; 各種リンク等もこの部分に入れる
+  (html:form
+    :action "@@httpd-url@@@@url-path@@m"
+    :method "post"
+    :target "_self"
+    (html:div
+      (html:input :type "hidden" :name "c" :value "submit")
+      (html:input :type "hidden" :name "_mb" :value "日本語")
+      ;; TODO: size指定とか入れるべき
+      (html:input :type "text" :name "text" :id "post-text" :value "")
+      (html:input :type "submit" ;:name "submit"
+                  :id "post-submit" :value "chat")
+      )
+      (html:script
+        "<!--\n"
+        "focusForm();\n"
+        "// -->"
+        )
+    (html:div
+      "Nickname:"
+      (html:input :type "text" :name "nick" :id "post-nick" :value nick)
+      (html:input :type "checkbox" :name "remember" :id "post-remember")
+      (html:label :for "remember" "Remember me")
+      )
+    (html:div
+      :id "navigation"
+      (html:a :href "@@httpd-url@@@@url-path@@entry" "Original mode")
+      " | "
+      (html:a :href "@@httpd-url@@@@url-path@@a/today" "Read Archive")
+      " | "
+      (html:a :href "@@httpd-url@@@@url-path@@s" "Search")
+      )
+    ))
+
+(define (the-recentlog)
+  ...)
+
+(define (the-footer)
+  ;; TODO: 転送量を抑える為に無しにすべきかも
+  (list
+    (html:hr)
+    (html:h1 :id "room-title"
+             (html:img :class "room-icon" :src "@@icon-url@@" :align "absmiddle" :alt "")
+             ;(html:br)
+             @@room-name/escd@@)
+    ;(html:div :class "room-description" @@room-description/escd@@)
+    (html:div :class "chaton-logo"
+              "Built on "(html:a :href +chaton-url+ "Chaton"))
+    )
+  ;'()
+  )
+
+(define (emit-content-submit params)
+  ;; Cookie: chaton-nickname=%u5C71%u7530%u592A%u90CE
+  ;; TODO: 名前クッキーを発行する必要がある(できればPCと共用で)
+  ...)
+
+;;;===================================================================
+
+(select-module user)
+(import chaton.mobile)
+(define main mobile-main)
+
+;; Local variables:
+;; mode: scheme
+;; end:
+;; vim: set ft=scheme:
+

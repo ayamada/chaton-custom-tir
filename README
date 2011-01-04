@@ -12,47 +12,90 @@
 
 * 主な変更内容
 - Read Archve の「本日のログ」の内容の厳密化/可視化
-- 各日付が内部ではGMTで扱われるようになっていたものを、
-  またlocaltimeへとデグレード
-  (前述のRead Archiveの日付の厳密化との整合性を取る為)
+- ログや発言のタイムスタンプを、GMTで扱うかlocaltimeで扱うかをconfで選択可能に
 - 組み込みのログ検索機能
 -- basic認証等をかけた為に、 search.html による外部の検索機能が
    使えなくなってしまった為の代用品
 -- 単純な線形検索なので、ログが増えるにつれ重くなる
-- w3mや携帯端末等の、JavaScript制御のできないブラウザの為の簡易クライアントcgi
-- 一部の文章のローカライズ(というか単に追加文言を日本語で書いただけ)
-- 一部の見た目にのみ関わる調整(部屋名の位置変更、toolへのリンクを外す等)
-- その他細かい変更
+- w3mや携帯端末等の、comet制御ができない/不向きなブラウザの為の簡易クライアント
+- 一部の見た目にのみ関わる調整
+- その他微細な変更
 
 
 * 追加されたファイル
-- README.orig 元々のChatonのREADME
+- README.orig 元々のChatonのREADMEはここに退避
 - chaton-search 前述の、組み込みのログ検索cgi
 - chaton-mobile 前述の、JavaScript非対応ブラウザの為の簡易クライアントcgi
 
 
+* 追加された設定項目
+あとでかく
+
+
 * TODO
+** やる
 - chaton-mobileの作成
+- confファイルで以下を設定可能に
+-- GMTベースかlocaltimeベースか
+-- connectの数値の表示/非表示
+-- 検索を search.html にするか chaton-search にするか
+-- youtube, ニコニコ動画、画像ファイルのサムネイル表示の有効/無効
+--- この設定は conf/appearance.conf に入れる
 - chaton-searchの検索対象は、行単位ではなく、日単位とする？
--- スイッチで動作を変更できるべきでは
-- chaton-entryの、元々tools等のリンクがあった場所に、*.conf設定で、
-  説明文を入れられるようにする(仮)
--- 現状の room-description での説明文はrss等にも入ってしまう、
-   「chat部屋自体の詳細」なので、
--- Read Archive 等のリンクもこの扱いにしてしまう？
+-- チェックボックスか何かで動作を指定できるようにする
+- sample.confがなるべく元のchaton互換になるように対応する
+-- 現在TODOに入っている、新しい設定項目を、 conf/* に入れるべきものはふりわけましょう
+-- tool link回りをconfに追い出す
+-- css個別設定もconfに追い出す
+-- 他にも、css回りの設定をいじった部分があるなら、元に戻すべきか調査する事
+-- conf/* に追い出すか、 *.conf に追い出すかは要検討
+-- chaton-entryの、元々tools等のリンクがあった場所に、*.conf設定で、
+   説明文を入れられるようにする(仮)
+--- 現状の room-description での説明文はrss等にも入ってしまう、
+    「chat部屋自体の詳細のテキスト」なので、
+    html等は入れづらい為、専用の項目を作りたい。
+    ついでなので、そこに元のtoolsを追い出す
+--- Read Archive 等のリンクはとりあえず今のところは、この扱いにはしない
+- build-site実行時に、sとsearch.htmlは両方生成して、confを見て、不要な方を削除するようにしましょう(動的変更時に古いファイルが残る対策を兼ねている)
+- 今日本語になっている部分の英語化
+- loose-loginが#fの時に、session expiredが出た後にリロードしても直らない問題を
+  どうにかする
+** あとまわし
+- chaton-searchの英語化
+- htaccessいじって、indexをmにし、モバイルモードかどうかの切り替えは
+  cookieで制御する(デフォルトはモバイルモード)
+-- これもconfファイルを見て、挙動を変更する必要あり
 - 部屋別にbasic認証をかけたりかけなかったりできるような、htaccess制御
+-- どういう風に実現するか仕様を考える事
 - chaton-searchでfindを使わないように直す
+** やらない
+- client/chaton/client.scm の chaton-permalink の元になる日時の扱いをどうするか
+-- 要は、 chaton.scm の make-permalink は、上の改造でlocaltimeで扱うように
+   したのに、 client/chaton/client.scm の chaton-permalink は、
+   GMTのままでいいのか、という話。
+--- 先に結論だけ書いておくと、
+    「自分は client/chaton/client.scm は使わないので、GMTのまま放置」。
+-- client/chaton/client.scm の chaton-permalink は要するに、
+   外部のtwitterブリッジ等から利用される手続きで、
+   サーバにある chaton.scm とは完全に分離している。
+   例えば別サーバ上でプロセスが動いたりする可能性があるので、
+   client/chaton/client.scm は、安易に (use chaton) できない。
+   という事は、chaton.scmだけいじれば、日付をGMTで扱うかlocaltimeで扱うかを
+   変更できるようにしたにも関わらず、この部分はまた別途に設定する必要がある、
+   という事。
+   これについて色々考えたが、とりあえず、
+   「このカスタマイズの利用者は自分のみの前提」
+   「自分は今のところ client/chaton/client.scm を使う予定はなし]
+   という二点より、前述の結論とした。
+--- 解決案として、「make-permalink と chaton-permalink のみ、常に
+    日付をGMTとして扱う」というのを考えたが、これだと、anchor部分はいいが、
+    URL部分に日付が入るところで、わざわざlocaltimeにデグレードさせた意味が
+    なくなってしまう(localtimeでの日単位でのログ分割じゃなくなってしまう)。
+    この問題を本質的に解決するには、URLにTZ情報を含める仕様にするぐらい？
 - archiveは、今日の日付のログ表示時のみno-cache系のヘッダを出力する
 -- 判定条件は、シンボリックリンクか否かだけでok
-- client/chaton/client.scm の chaton-permalink の扱い
--- これは要するに、外部のtwitterブリッジ等から利用される手続きで、
-   サーバにある chaton.scm とは完全に分離している。
-   (例えば別サーバ上でプロセスが動いたりする可能性があるので、
-    一緒にはできない)
-   しかし、だからといってGMTにするのも微妙。
-   (上のローカライズで、サーバの0時単位で、ログ(URL)を区切ってしまっている為)
--- とりあえず自分的には、このAPIは使わないという事で、
-   GMTのままにしておく事にする
+-- よく考えたら、ログ自体は変化しなくても、右のログ一覧は常に変化する可能性が
+   あるので、常にno-cache系ヘッダを出力する意味があり、やらない事に
 
 
 * 改造方針
@@ -84,6 +127,12 @@
    apache等の他のhttpdのように、80番をlistenしてから権限を落としたり等の
    工夫が必要になる)
   もしそれをやる場合は、djbのtcpserverに中継させる方針がいいと思う。
+  (この方針であれば、もし必要なら、tcpserverのssl対応パッチを使って
+   https対応にすらできるかもしれない(できないかもしれない)。
+   tcpserverでsslをする場合は結構重くなるので気軽ではないが)
+-- これをやる場合、chaton-entry等も、comet serverが出力してしまうのが良い。
+   その場合は、tcpcgiのコードを流用できる。
+--- ただ、tcpcgiはbasic認証が未実装だった気がするので、そこは頑張る必要が
 
 
 

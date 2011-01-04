@@ -64,11 +64,6 @@
        (html:br)
        @@room-name/escd@@)
      (html:div :class "room-description" @@room-description/escd@@)
-     ;(html:div :class "room-description"
-     ;          "改造中"
-     ;          (html:br)
-     ;          "「Session expired」と出た時は一旦ブラウザを閉じてから開き直してください"
-     ;          )
      ;(html:div :class "room-links"
      ; (html:a :href "@@httpd-url@@@@url-path@@search.html" "Search")
      ; " | "(html:a :href "@@httpd-url@@@@url-path@@badge.html" "Badge")
@@ -81,7 +76,8 @@
      (html:div :id "navigation"
       (html:a :href "a/today" "Read Archive")
       " | "(html:a :href "@@httpd-url@@@@url-path@@var/index.rdf" "RSS")
-      " | "(html:a :href "javascript:alert('準備中')" "携帯用(準備中)")
+      ;" | "(html:a :href "@@httpd-url@@@@url-path@@m" "Mobile mode")
+      " | "(html:a :href "javascript:alert('準備中')" "Mobile mode")
       " | "(html:a :href "@@httpd-url@@@@url-path@@s" "Search")
       )
      (html:div :id "view-frame-container"
@@ -113,4 +109,5 @@
 ;; Local variables:
 ;; mode: scheme
 ;; end:
+;; vim: set ft=scheme:
 

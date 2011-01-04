@@ -47,7 +47,7 @@ div.monthly-navigate { margin:10px 0 10px 0; padding: 0; }
 .monthly-navigate li { list-style-type: none; padding-left: 15px; }
 .monthly-navigate .navigate-today { background-color: #fee; }
 
-.search-box  { margin: 0 0 0 0; padding: 0; }
+.search-box  { margin: 3em 0 3em 0; padding: 0; }
 .search-area-url { font-family: mono, courier; }
 .search-box p.search-area { margin: 0; padding: 0 0 0 30px; }
 .search-navigate { margin: 0; padding: 0; text-align: right; }
@@ -60,5 +60,6 @@ img.hide-while-loading { display: none; }
 img.wshrunk { width: @@img-size-limit@@px; }
 img.hshrunk { height: @@img-size-limit@@px; }
 
-object.youtube { margin: 3px; border: none; }
+object.youtube { margin: 3px; padding: 0; border: none; width: @@embed-youtube-width@@;
+                 height: @@embed-youtube-height@@; }
 iframe.nicovideo { margin: 3px; border: none; }
