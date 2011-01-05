@@ -34,13 +34,13 @@
 
 * TODO
 ** やる
-- chaton-mobileの作成
 - confファイルで以下を設定可能に
 -- GMTベースかlocaltimeベースか
 -- connectの数値の表示/非表示
 -- 検索を search.html にするか chaton-search にするか
 -- youtube, ニコニコ動画、画像ファイルのサムネイル表示の有効/無効
 --- この設定は conf/appearance.conf に入れる
+- chaton-mobileの作成
 - chaton-searchの検索対象は、行単位ではなく、日単位とする？
 -- チェックボックスか何かで動作を指定できるようにする
 - sample.confがなるべく元のchaton互換になるように対応する
