@@ -211,14 +211,13 @@
           (html:img :src url :alt url :onload "checkImageSize(this);")))
 
 (define (render-url-youtube host vid)
-  (html:object :class "youtube"
+  (html:iframe :title "YouTube video player"
+               :class "youtube-player"
+               :type "text/html"
                :width "@@embed-youtube-width@@"
                :height "@@embed-youtube-height@@"
-               :type "application/x-shockwave-flash"
-               :data #`"http://,|host|/v/,|vid|"
-               :onload "scrollToBottom();"
-               (html:param :name "movie" :value #`"http://,|host|/v/,|vid|")
-               (html:param :name "wmode" :value "transparent")))
+               :src #`"http://,|host|/embed/,|vid|"
+               :frameborder "0"))
 
 (define (render-url-nicovideo vid)
   (html:iframe :width "314" :height "176"
