@@ -125,7 +125,8 @@
            [permalink (make-permalink sec anchor-string)])
       (values `(,(if (and (equal? nick (state-chatter last-state))
                           (equal? ip (state-ip last-state))
-                          (< (abs (- (state-timestamp last-state) sec)) 240))
+                          (< (abs (- (state-timestamp last-state) sec)) 
+                             (get-timestamp-omit-interval)))
                    '()
                    (html:div
                     :class "entry-header"
@@ -284,6 +285,10 @@
 (define (get-systime sec)
   ;(sys-gmtime sec)
   (sys-localtime sec)
+  )
+(define (get-timestamp-omit-interval)
+  ;240
+  (* 2 60 60)
   )
 
 ;; This feature should be built-in!
