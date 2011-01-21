@@ -88,7 +88,7 @@
                   )
       (html:html
         (html:head
-          (html:title "Chaton "@@room-name/escd@@)
+          (html:title "Chaton " (html-escape-string @@room-name/escd@@))
           (html:link :href "@@httpd-url@@@@url-path@@chaton.css" :rel "Stylesheet"
                      :type "text/css")
           (html:link :href "@@httpd-url@@@@url-path@@var/index.rdf" :rel "Alternate" :type "application/rss+xml")
@@ -149,8 +149,9 @@
     (html:h1 :id "room-title"
              (html:img :class "room-icon" :src "@@icon-url@@" :align "absmiddle" :alt "")
              ;(html:br)
-             @@room-name/escd@@)
-    ;(html:div :class "room-description" @@room-description/escd@@)
+             (html-escape-string @@room-name/escd@@))
+    ;(html:div :class "room-description"
+    ;          (html-escape-string @@room-description/escd@@))
     (html:div :class "chaton-logo"
               "Built on "(html:a :href +chaton-url+ "Chaton"))
     )

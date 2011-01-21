@@ -11,13 +11,14 @@
 
 
 * 主な変更内容
-- Read Archve の「本日のログ」の内容の厳密化/可視化
+- Read Archve の「本日のログ」の内容の厳密化/可視化/リダイレクトでなくする
 - ログや発言のタイムスタンプを、GMTで扱うかlocaltimeで扱うかをconfで選択可能に
 - 組み込みのログ検索機能
 -- basic認証等をかけた為に、 search.html による外部の検索機能が
    使えなくなってしまった為の代用品
 -- 単純な線形検索なので、ログが増えるにつれ重くなる
 - w3mや携帯端末等の、comet制御ができない/不向きなブラウザの為の簡易クライアント
+- youtubeサムネイルをiframe版に
 - 一部の見た目にのみ関わる調整
 - その他微細な変更
 
@@ -28,47 +29,56 @@
 - chaton-mobile 前述の、JavaScript非対応ブラウザの為の簡易クライアントcgi
 
 
-* 追加された設定項目
-あとでかく
+* 追加された設定項目と、そのデフォルト値
+- (dont-expand-url #f)
+-- 画像、youtube、ニコ動のurlを展開するかどうか
+- (use-localtime #f)
+-- 日時をGMTで扱うかサーバのlocaltimeで扱うか
+- (timestamp-omit-interval 240)
+-- 日時を省略する間隔を秒数で指定
+- (dont-show-connect-num #f)
+-- 現在cometサーバに接続している人数を表示するか否か
+- (use-internal-search #f)
+-- 検索機能に組み込みのログ検索機能を使うか、search.htmlを使うか
+- (use-chaton-mobile #f)
+- (dont-use-badge #f)
+-- badge.htmlの使用の有無
+- (extra-menu-html-list ())
+-- メニュー部分に追加したいhtmlをlistで入れる(複数ok)
+- (room-html "")
+-- chaton-entryに埋め込むhtml
+   (room-description は、rss等にも入ってしまう、
+    「chat部屋自体の説明文」なので、
+    html等を入れづらい為、別項目を用意した)
+- (extra-css "")
+-- chaton.cssの末尾に追加される
 
 
 * TODO
 ** やる
-- confファイルで以下を設定可能に
--- GMTベースかlocaltimeベースか
--- 連続投稿の表示時の日付省略機能の期間を任意設定可能に
--- connectの数値の表示/非表示
--- 検索を search.html にするか chaton-search にするか
--- youtube, ニコニコ動画、画像ファイルのサムネイル表示の有効/無効
---- この設定は conf/appearance.conf に入れる
-- chaton-mobileの作成
+- build-site 実行時に、「installing ...」と表示されるが、
+  あとで削除するファイルについても表示してしまっているので問題。
+-- かといって、表示しないようにするのも面倒なので、
+   ファイル削除時に「removing ...」と追加で表示するだけにする
 - chaton-searchの検索対象は、行単位ではなく、日単位とする？
 -- チェックボックスか何かで動作を指定できるようにする
-- sample.confがなるべく元のchaton互換になるように対応する
--- 現在TODOに入っている、新しい設定項目を、 conf/* に入れるべきものはふりわけましょう
--- tool link回りをconfに追い出す
--- css個別設定もconfに追い出す
--- 他にも、css回りの設定をいじった部分があるなら、元に戻すべきか調査する事
--- conf/* に追い出すか、 *.conf に追い出すかは要検討
--- chaton-entryの、元々tools等のリンクがあった場所に、*.conf設定で、
-   説明文を入れられるようにする(仮)
---- 現状の room-description での説明文はrss等にも入ってしまう、
-    「chat部屋自体の詳細のテキスト」なので、
-    html等は入れづらい為、専用の項目を作りたい。
-    ついでなので、そこに元のtoolsを追い出す
---- Read Archive 等のリンクはとりあえず今のところは、この扱いにはしない
-- build-site実行時に、sとsearch.htmlは両方生成して、confを見て、不要な方を削除するようにしましょう(動的変更時に古いファイルが残る対策を兼ねている)
-- 今日本語になっている部分の英語化
+- chaton-mobileの作成
 - loose-loginが#fの時に、session expiredが出た後にリロードしても直らない問題を
   どうにかする
+-- 再現手順: chatonを開いたままブラウザを再起動する
+--- ブラウザ側は古いセッションを維持しているのに、サーバ側がexpireさせているのが原因？？？
 ** あとまわし
-- chaton-searchの英語化
 - htaccessいじって、indexをmにし、モバイルモードかどうかの切り替えは
   cookieで制御する(デフォルトはモバイルモード)
 -- これもconfファイルを見て、挙動を変更する必要あり
-- 部屋別にbasic認証をかけたりかけなかったりできるような、htaccess制御
--- どういう風に実現するか仕様を考える事
+--- 項目名を決める事
 - chaton-searchでfindを使わないように直す
+-- build-siteにそれっぽいコードあり、参考にする事
+- 過去ログの逆順表示
+-- でもMobile modeの実装状況によっては不要かも。あとで判断する
+- githubに保存する際に、オリジナルと改変部分とでブランチ変更するの忘れてたので、このままではrebaseできない。なんとかすること
+- 今日本語になっている部分の英語化
+-- chaton-searchの英語化
 ** やらない
 - client/chaton/client.scm の chaton-permalink の元になる日時の扱いをどうするか
 -- 要は、 chaton.scm の make-permalink は、上の改造でlocaltimeで扱うように
@@ -95,25 +105,15 @@
     この問題を本質的に解決するには、URLにTZ情報を含める仕様にするぐらい？
 - archiveは、今日の日付のログ表示時のみno-cache系のヘッダを出力する
 -- 判定条件は、シンボリックリンクか否かだけでok
--- よく考えたら、ログ自体は変化しなくても、右のログ一覧は常に変化する可能性が
-   あるので、常にno-cache系ヘッダを出力する意味があり、やらない事に
+-- よく考えたら、ログ自体は変化しなくても、右のログリンク一覧は
+   常に変化する可能性があるので、常にno-cache系ヘッダを出力する意味があり、
+   やらない事に
 
 
 * 改造方針
 - 上流が更新された際にバージョンアップしやすいように、
   なるべく元ファイルの状態を温存する
 - 上流へ還元できる形であるにこした事はないが、そこまではがんばらない
--- 拡張した部分では日本語を使ってok
-
-
-* chaton-search, chaton-mobileのみを導入する際の注意点
-- build-site と htaccess も持っていく/変更する必要があります
--- build-site は、make install時にcharon-search等を反映する為に必要
--- htaccess は、新たに追加になったファイルをcgi動作させる為に必要
-- 各ファイルの、日付判定厳密化の為の有効無効フラグを書き換える必要があるかも
--- 詳細はあとでまとめる
-- (optional) chaton-entryを書き換える
-  (chaton-search, chaton-mobileへのリンクを入れる)
 
 
 * その他のメモ

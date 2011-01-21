@@ -11,6 +11,7 @@
   (use text.tree)
   (use file.util)
   (use srfi-1)
+  (use util.list)
   (export entry-main))
 (select-module chaton.entry)
 
@@ -48,7 +49,7 @@
 (define (the-page cid)
   (html:html
    (html:head
-    (html:title "Chaton "@@room-name/escd@@)
+    (html:title "Chaton " (html-escape-string @@room-name/escd@@))
     (html:link :href "@@httpd-url@@@@url-path@@chaton.css" :rel "Stylesheet"
                :type "text/css")
     (html:link :href "@@httpd-url@@@@url-path@@var/index.rdf" :rel "Alternate" :type "application/rss+xml")
@@ -62,24 +63,35 @@
       (html:h1 :id "room-title"
        (html:img :class "room-icon" :src "@@icon-url@@" :align "absmiddle" :alt "")
        (html:br)
-       @@room-name/escd@@)
-     (html:div :class "room-description" @@room-description/escd@@)
-     ;(html:div :class "room-links"
-     ; (html:a :href "@@httpd-url@@@@url-path@@search.html" "Search")
-     ; " | "(html:a :href "@@httpd-url@@@@url-path@@badge.html" "Badge")
-     ; " | "(html:a :href "http://practical-scheme.net/chaton/doc/Tools" "Tools"))
+       (html-escape-string @@room-name/escd@@))
+     (html:div :class "room-description"
+               (html-escape-string @@room-description/escd@@))
+     (html:div :class "room-description" @@room-html/escd@@)
      (html:div :class "chaton-logo"
       "Built on "(html:a :href +chaton-url+ "Chaton"))
      )
     ;; Left pane --------------
     (html:div :id "left-pane"
      (html:div :id "navigation"
-      (html:a :href "a/today" "Read Archive")
-      " | "(html:a :href "@@httpd-url@@@@url-path@@var/index.rdf" "RSS")
-      ;" | "(html:a :href "@@httpd-url@@@@url-path@@m" "Mobile mode")
-      " | "(html:a :href "javascript:alert('準備中')" "Mobile mode")
-      " | "(html:a :href "@@httpd-url@@@@url-path@@s" "Search")
-      )
+      (intersperse
+        " | "
+        (filter
+          identity
+          (list*
+            (html:a :href "a/today" "Read Archive")
+            (html:a :href "@@httpd-url@@@@url-path@@var/index.rdf" "RSS")
+            (if @@use-chaton-mobile@@
+              ;(html:a :href "@@httpd-url@@@@url-path@@m" "Mobile mode")
+              (html:a :href "javascript:alert('準備中')" "Mobile mode")
+              #f)
+            (if @@use-internal-search@@
+              (html:a :href "@@httpd-url@@@@url-path@@s" "Search")
+              (html:a :href "@@httpd-url@@@@url-path@@search.html" "Search"))
+            (if @@dont-use-badge@@
+              #f
+              (html:a :href "@@httpd-url@@@@url-path@@badge.html" "Badge"))
+            (quote
+              @@extra-menu-html-list/escd@@)))))
      (html:div :id "view-frame-container"
       (html:iframe :src #`"@@httpd-url@@:@@comet-port@@/?c=,cid"
                    :id "view-frame"))

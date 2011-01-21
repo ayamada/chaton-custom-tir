@@ -192,14 +192,16 @@
                  `(,(render-url (m 0)),(html-escape-string (m'before)),@r)))]
      [else (reverse (cons (html-escape-string s) r))])))
 
-(define (render-url url)
-  (rxmatch-case url
-    [#/\.(?:jpg|gif|png)$/i () (render-url-image url)]
-    [#/^http:\/\/(\w{2,3}\.youtube\.com)\/watch\?v=([\w-]{1,12})/ (_ host vid)
-     (render-url-youtube host vid)]
-    [#/^http:\/\/www\.nicovideo\.jp\/watch\/(\w{1,13})/ (_ vid)
-     (render-url-nicovideo vid)]
-    [else (render-url-default url)]))
+(define (render-url url :optional (dont-expand-url @@dont-expand-url@@))
+  (if dont-expand-url
+    (render-url-default url)
+    (rxmatch-case url
+      [#/\.(?:jpg|gif|png)$/i () (render-url-image url)]
+      [#/^http:\/\/(\w{2,3}\.youtube\.com)\/watch\?v=([\w-]{1,12})/ (_ host vid)
+       (render-url-youtube host vid)]
+      [#/^http:\/\/www\.nicovideo\.jp\/watch\/(\w{1,13})/ (_ vid)
+       (render-url-nicovideo vid)]
+      [else (render-url-default url)])))
 
 (define (render-url-default url)
   (html:a :href url :rel "nofollow" :class "link-default"
@@ -283,13 +285,12 @@
 ;;;
 
 (define (get-systime sec)
-  ;(sys-gmtime sec)
-  (sys-localtime sec)
-  )
+  ((if @@use-localtime@@ sys-localtime sys-gmtime) sec))
+
 (define (get-timestamp-omit-interval)
-  ;240
-  (* 2 60 60)
-  )
+  (or
+    @@timestamp-omit-interval@@
+    240))
 
 ;; This feature should be built-in!
 

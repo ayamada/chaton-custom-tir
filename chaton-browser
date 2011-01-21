@@ -20,9 +20,14 @@
               (rxmatch-case (cgi-get-metavariable "PATH_INFO")
                 [#/^\/(\d\d\d\d)\/(\d\d)\/(\d\d)$/ (_ y m d)
                  (emit-archfile (x->integer y) (x->integer m) (x->integer d))]
-                [#/^\/today/ () (emit-redirect (current-date))]
-                [#/^\/yesterday/ () (emit-redirect (date+ (current-date) -1))]
+                ;[#/^\/today/ () (emit-redirect (current-date))]
+                ;[#/^\/yesterday/ () (emit-redirect (date+ (current-date) -1))]
+                [#/^\/today/ () (emit-archfile-from-date (current-date))]
+                [#/^\/yesterday/ () (emit-archfile-from-date (date+ (current-date) -1))]
                 [else (emit-archfile 1970 1 1)]))))
+
+(define (emit-archfile-from-date date)
+  (emit-archfile (date-year date) (date-month date) (date-day date)))
 
 (define (emit-redirect date)
   (cgi-header
@@ -85,12 +90,6 @@
                     "Built on "
                     (html:a :href "http://practical-scheme.net/chaton/"
                             "Chaton"))
-          ;(html:div :class "room-links"
-          ;          (html:a :href "@@httpd-url@@@@url-path@@search.html" "Search")
-          ;          " | "
-          ;          (html:a :href "@@httpd-url@@@@url-path@@badge.html" "Badge")
-          ;          " | "
-          ;          (html:a :href "http://practical-scheme.net/chaton/doc/Tools" "Tools"))
           (monthly-navigate y m d))
          (html:div
           :id "left-pane"
@@ -136,9 +135,9 @@
          ,(month-link-active y m)
          ,(html:ul (monthly-entries y m d))
          ,(if (= m 12) (month-link (+ y 1) 1 #t) (month-link y (+ m 1) #t)))
-      (if (and
-            (= y today-y)
-            (= m today-m))
+      (if (or
+            (and (= y today-y) (= m today-m))
+            (and (= (+ y 1) today-y) (= 12 m) (= 1 today-m)))
         '()
         (month-link-active today-y today-m))
       (html:ul

@@ -192,9 +192,13 @@ function insertContent(json, cid) {
         showStatus('Session Expired.  Please Reload.', 'status-alert');
         return;
     }
-    // showStatus('Connected ('+json.nc+' user'+(json.nc>1?'s':'')+' chatting)',
-    //            'status-ok');
-    showStatus('Connected', 'status-ok');
+    if ('@@dont-show-connect-num@@' == '#f') {
+        showStatus('Connected ('+json.nc+' user'+(json.nc>1?'s':'')+' chatting)',
+                   'status-ok');
+    }
+    else {
+        showStatus('Connected', 'status-ok');
+    }
     need_scroll = true;
     if (json.pos < pos || json.refresh) {
         $('view-pane').update('');

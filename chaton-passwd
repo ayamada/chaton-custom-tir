@@ -41,7 +41,7 @@
     (html:body :id "the-body"
      (html:h1 :id "room-title"
       (html:img :class "room-icon" :src "@@icon-url@@" :align "absmiddle" :alt "")
-      @@room-name/escd@@)
+      (html-escape-string @@room-name/escd@@))
      (html:h2 :style "margin-top: 2em; font-size: 120%"
               "Changing password of " (cgi-get-metavariable "REMOTE_USER"))
      (html:p :style "color: #ff0000" msg)

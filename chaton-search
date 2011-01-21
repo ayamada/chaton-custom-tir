@@ -200,7 +200,9 @@
   (let ()
     (html:html
       (html:head
-        (html:title "Chaton " @@room-name/escd@@ " &gt; Search")
+        (html:title "Chaton "
+                    (html-escape-string @@room-name/escd@@)
+                    " &gt; Search")
         (html:link :href "@@httpd-url@@@@url-path@@chaton.css" :rel "Stylesheet"
                    :type "text/css")
         (html:script :src "@@prototype-url@@" :type "text/javascript"))
@@ -213,8 +215,9 @@
           (html:h1 :id "room-title"
                    (html:img :class "room-icon" :src "@@icon-url@@" :align "absmiddle" :alt "")
                    (html:br)
-                   @@room-name/escd@@)
-          ;(html:div :class "room-description" @@room-description/escd@@)
+                   (html-escape-string @@room-name/escd@@))
+          ;(html:div :class "room-description"
+          ;          (html-escape-string @@room-description/escd@@))
           (html:div
             (html:p :class "search-navigate"
                     (html:a :href "@@httpd-url@@@@url-path@@"

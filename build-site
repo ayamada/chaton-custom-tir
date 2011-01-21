@@ -26,9 +26,17 @@
          [archiver-script #`"chaton-archiver-,|safe-room-name|"]
          [room-name/escd (write-to-string (assoc-ref config 'room-name))]
          [room-description/escd (write-to-string (assoc-ref config 'room-description))]
+         [room-html/escd (write-to-string (or (assoc-ref config 'room-html) ""))]
+         [extra-menu-html-list/escd (map
+                                      write-to-string
+                                      (or
+                                        (assoc-ref config 'extra-menu-html-list)
+                                        '()))]
          [xconfig `((comet-script . ,comet-script) (cgi-script . ,cgi-script)
                     (room-name/escd . ,room-name/escd)
                     (room-description/escd . ,room-description/escd)
+                    (room-html/escd . ,room-html/escd)
+                    (extra-menu-html-list/escd . ,extra-menu-html-list/escd)
                     (htaccess-auth . ,(htaccess-auth config))
                     ,@config)])
     (ensure-files-and-directories bindir docdir datadir)
@@ -56,6 +64,28 @@
        [else (print "chaton.js unchanged.")])
       (when (assoc-ref config 'htpasswd-path)
         (sed "chaton-passwd" (build-path docdir "passwd") nconf))
+      ;; remove files (includes maybe old)
+      (remove-files
+        (filter
+          (lambda (x)
+            (and x (not (undefined? x))))
+          (list
+            ;; search.html or chaton-search
+            (build-path docdir (if (assoc-ref config 'use-internal-search)
+                                 "search.html"
+                                 "s"))
+            ;; passwd
+            (if (not (assoc-ref config 'htpasswd-path))
+              (build-path docdir "passwd"))
+            ;; chaton-mobile
+            (if (not (assoc-ref config 'use-chaton-mobile))
+              (build-path docdir "m"))
+            ;; badge.html
+            (if (assoc-ref config 'dont-use-badge)
+              (build-path docdir "badge.html"))
+            (if (assoc-ref config 'dont-use-badge)
+              (build-path docdir "b"))
+            )))
       )))
 
 (define (sed inf outf config :optional (verbose? #t))
@@ -100,7 +130,25 @@
                        [(var val) (acons var val seed)]))
                    seed
                    read))))
-  (do-load file '()))
+  ;; added new entries for *.conf, those are may not in *.conf
+  ;; (because transfer old version)
+  ;; this cause not replace @@hoge@@ sed-like macro.
+  ;; to avoid this, set to fallback values #f for new var entries.
+  (do-load file (map
+                  (cut cons <> #f)
+                  *config-fallback-keys*)))
+(define *config-fallback-keys*
+  '(dont-expand-url
+    use-localtime
+    timestamp-omit-interval
+    dont-show-connect-num
+    use-internal-search
+    use-chaton-mobile
+    dont-use-badge
+    extra-menu-html-list
+    room-html
+    extra-css
+    ))
 
 ;; Ensure directories and files that should exist
 (define (ensure-files-and-directories bindir docdir datadir)
@@ -140,12 +188,15 @@
                       #t)))
         (sys-unlink "chaton.js.tmp")))))
   
+(define (get-chaton-js-files dir)
+  (directory-list dir :add-path? #t :filter #/^chaton\.\w+\.js$/))
+
 (define (find-latest-chaton-js dir)
-  (let1 fs (directory-list dir :add-path? #t :filter #/^chaton\.\w+\.js$/)
+  (let1 fs (get-chaton-js-files dir)
     (if (null? fs) #f (car (reverse fs)))))
 
 (define (remove-old-chaton-js dir)
-  (remove-files (directory-list dir :add-path? #t :filter #/^chaton\.\w+\.js$/)))
+  (remove-files (get-chaton-js-files dir)))
 
 ;; emit htaccess basic authentication setting if needed
 (define (htaccess-auth config)
