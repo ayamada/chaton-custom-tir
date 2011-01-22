@@ -62,15 +62,24 @@
 
 (define (emit-archfile y m d)
   (let1 archfile (dpath y m d)
-    (make-page y m d (or
-                       (and-let* ((_ (file-exists? archfile))
-                                  (idx (get-archfile-idx archfile y m d)))
-                         (chaton-render-from-file archfile idx #f))
-                       (html:div :style "text-align: center" "(データがありません)")))))
+    (make-page
+      y
+      m
+      d
+      (or
+        (and-let* ((_ (file-exists? archfile))
+                   (idx (get-archfile-idx archfile y m d)))
+          (chaton-render-from-file archfile idx #f))
+        (html:div :style "text-align: center" "(データがありません)"))
+      (file-is-symlink? archfile))))
 
-(define (make-page y m d content)
+(define (make-page y m d content no-cache?)
   (let1 title (format "~a > Archives > ~a" *room* (ymd y m d))
-    `(,(cgi-header :content-type "text/html; charset=utf-8")
+    `(,(apply cgi-header
+              :content-type "text/html; charset=utf-8"
+              (if no-cache?
+                '(:pragma "no-cache" :cache-control "no-cache")
+                '()))
       ,(html:html
         (html:head
          (html:title (html-escape-string title))
