@@ -11,6 +11,7 @@
 
 
 * 主な変更内容
+- 設定可能項目の追加(詳細は後述)
 - Read Archve の「本日のログ」の内容の厳密化/可視化/リダイレクトでなくする
 - ログや発言のタイムスタンプを、GMTで扱うかlocaltimeで扱うかをconfで選択可能に
 - 組み込みのログ検索機能
@@ -32,6 +33,8 @@
 * 追加された設定項目と、そのデフォルト値
 - (dont-expand-url #f)
 -- 画像、youtube、ニコ動のurlを展開するかどうか
+- (extra-css "")
+-- chaton.cssの末尾に追加される
 - (use-localtime #f)
 -- 日時をGMTで扱うかサーバのlocaltimeで扱うか
 - (timestamp-omit-interval 240)
@@ -39,19 +42,17 @@
 - (dont-show-connect-num #f)
 -- 現在cometサーバに接続している人数を表示するか否か
 - (use-internal-search #f)
--- 検索機能に組み込みのログ検索機能を使うか、search.htmlを使うか
+-- 検索機能に組み込みのログ検索機能を使うか、search.html(google)を使うか
 - (use-chaton-mobile #f)
+-- chaton-mobileの使用の有無
 - (dont-use-badge #f)
--- badge.htmlの使用の有無
+-- badge.htmlおよびchaton-badgeの使用の有無
 - (extra-menu-html-list ())
 -- メニュー部分に追加したいhtmlをlistで入れる(複数ok)
 - (room-html "")
 -- chaton-entryに埋め込むhtml
-   (room-description は、rss等にも入ってしまう、
-    「chat部屋自体の説明文」なので、
-    html等を入れづらい為、別項目を用意した)
-- (extra-css "")
--- chaton.cssの末尾に追加される
+-- room-description は、rss等にも入ってしまう「chat部屋自体の説明文」なので、
+   html等を入れづらい為、別項目を用意した
 
 
 * TODO
@@ -69,37 +70,31 @@
 - 過去ログの逆順表示
 -- でもMobile modeの実装状況によっては不要かも。あとで判断する
 - githubに保存する際に、オリジナルと改変部分とでブランチ変更するの忘れてたので、このままではrebaseできない。なんとかすること
-- 今日本語になっている部分の英語化
--- chaton-searchの英語化
+-- このままでもrebaseできるなら不要。できる？
+--- オリジナルの方を、別ブランチ名で追加すればいいだけ？
+- conf内でtext.html-liteとか使いたい
+-- 無名モジュールを用意してevalする方向で対応を考える
+-- 他の設定項目と整合性を取る必要が
+-- string-appendとか他の手続きも許容する？
 ** やらない
 - client/chaton/client.scm の chaton-permalink の元になる日時の扱いをどうするか
--- 要は、 chaton.scm の make-permalink は、上の改造でlocaltimeで扱うように
-   したのに、 client/chaton/client.scm の chaton-permalink は、
-   GMTのままでいいのか、という話。
---- 先に結論だけ書いておくと、
-    「自分は client/chaton/client.scm は使わないので、GMTのまま放置」。
--- client/chaton/client.scm の chaton-permalink は要するに、
+-- client/chaton/client.scm は要するに、
    外部のtwitterブリッジ等から利用される手続きで、
    サーバにある chaton.scm とは完全に分離している。
-   例えば別サーバ上でプロセスが動いたりする可能性があるので、
-   client/chaton/client.scm は、安易に (use chaton) できない。
-   という事は、chaton.scmだけいじれば、日付をGMTで扱うかlocaltimeで扱うかを
-   変更できるようにしたにも関わらず、この部分はまた別途に設定する必要がある、
-   という事。
-   これについて色々考えたが、とりあえず、
-   「このカスタマイズの利用者は自分のみの前提」
-   「自分は今のところ client/chaton/client.scm を使う予定はなし]
-   という二点より、前述の結論とした。
+   (Chaton本体とは別サーバ上でプロセスが動いたりする可能性がある)
+   という事は、confの設定で、日付をGMTで扱うかlocaltimeで扱うかを
+   変更できるようにしたにも関わらず、この部分はまた別途に設定する必要がある。
 --- 解決案として、「make-permalink と chaton-permalink のみ、常に
     日付をGMTとして扱う」というのを考えたが、これだと、anchor部分はいいが、
     URL部分に日付が入るところで、わざわざlocaltimeにデグレードさせた意味が
     なくなってしまう(localtimeでの日単位でのログ分割じゃなくなってしまう)。
     この問題を本質的に解決するには、URLにTZ情報を含める仕様にするぐらい？
+-- 大変そうなので、放置する事にする。
 - archiveは、今日の日付のログ表示時のみno-cache系のヘッダを出力する
 -- 判定条件は、シンボリックリンクか否かだけでok
 -- よく考えたら、ログ自体は変化しなくても、右のログリンク一覧は
    常に変化する可能性があるので、常にno-cache系ヘッダを出力する意味があり、
-   やらない事に
+   やらない事に。
 
 
 * 改造方針
@@ -122,7 +117,7 @@
   もしそれをやる場合は、djbのtcpserverに中継させる方針がいいと思う。
   (この方針であれば、もし必要なら、tcpserverのssl対応パッチを使って
    https対応にすらできるかもしれない(できないかもしれない)。
-   tcpserverでsslをする場合は結構重くなるので気軽ではないが)
+   tcpserverでsslをする場合は結構重くなるので問題かもしれないが)
 -- これをやる場合、chaton-entry等も、comet serverが出力してしまうのが良い。
    その場合は、tcpcgiのコードを流用できる。
 --- ただ、tcpcgiはbasic認証が未実装だった気がするので、そこは頑張る必要が
