@@ -36,7 +36,7 @@
 - (dont-show-connect-num #f)
 -- 現在cometサーバに接続している人数を表示するか否か
 - (use-internal-search #f)
--- 検索機能に組み込みのログ検索機能を使うか、search.html(google)を使うか
+-- 検索機能にchaton-searchを使うか、search.html(google検索)を使うか
 - (use-chaton-mobile #f)
 -- chaton-mobileの使用の有無
 - (dont-use-badge #f)
