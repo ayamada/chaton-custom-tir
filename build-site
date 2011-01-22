@@ -68,7 +68,7 @@
       (remove-files
         (filter
           (lambda (x)
-            (and x (not (undefined? x))))
+            (and x (not (undefined? x)) (print "removing " x)))
           (list
             ;; search.html or chaton-search
             (build-path docdir (if (assoc-ref config 'use-internal-search)
