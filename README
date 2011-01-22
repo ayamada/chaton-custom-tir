@@ -51,6 +51,12 @@
 
 * TODO
 ** やる
+- conf内でtext.html-liteとか使いたい
+-- 無名モジュールを用意してevalする方向で対応を考える
+-- 他の設定項目と整合性を取る必要が
+--- 問題なさげ
+-- string-appendとか他の手続きも許容する？
+-- useだけ特別扱いする
 - chaton-mobileの作成
 - loose-loginが#fの時に、session expiredが出た後にリロードしても直らない問題を
   どうにかする
@@ -67,10 +73,6 @@
 - githubに保存する際に、オリジナルと改変部分とでブランチ変更するの忘れてたので、このままではrebaseできない。なんとかすること
 -- このままでもrebaseできるなら不要。できる？
 --- オリジナルの方を、別ブランチ名で追加すればいいだけ？
-- conf内でtext.html-liteとか使いたい
--- 無名モジュールを用意してevalする方向で対応を考える
--- 他の設定項目と整合性を取る必要が
--- string-appendとか他の手続きも許容する？
 ** やらない
 - client/chaton/client.scm の chaton-permalink の元になる日時の扱いをどうするか
 -- client/chaton/client.scm は要するに、

@@ -250,6 +250,7 @@
             (map
               (lambda (result)
                 (receive (nick sec usec text ip) (decompose-entry result)
+                  ;; TODO: この部分はchaton.scmを使って共通化したい
                   (define (render-text str)
                     (html:a ;:class "permalink-anchor"
                             :href (make-permalink
