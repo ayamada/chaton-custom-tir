@@ -310,7 +310,8 @@
           :id "right-pane"
           ;; Title ------------------
           (html:h1 :id "room-title"
-                   (html:img :class "room-icon" :src "@@icon-url@@" :align "absmiddle" :alt "")
+                   (html:img :class "room-icon" :src "@@icon-url@@"
+                             :align "absmiddle" :alt "")
                    (html:br)
                    (html-escape-string @@room-name/escd@@))
           ;(html:div :class "room-description"

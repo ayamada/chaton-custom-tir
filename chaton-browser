@@ -70,7 +70,8 @@
         (and-let* ((_ (file-exists? archfile))
                    (idx (get-archfile-idx archfile y m d)))
           (chaton-render-from-file archfile idx #f))
-        (html:div :style "text-align: center" "(データがありません)"))
+        (html:div :style "text-align: center"
+                  (html:strong "(entry not found)")))
       (file-is-symlink? archfile))))
 
 (define (make-page y m d content no-cache?)
@@ -89,17 +90,23 @@
          (html:script :src "@@httpd-url@@@@url-path@@@@chaton-js@@"
                       :type "text/javascript"))
         (html:body
-         (html:h1 :id "room-title"
-                  (html:img :class "room-icon" :src "@@icon-url@@"
-                            :align "absmiddle" :alt "")
-                  (html-escape-string title))
+         (html:h1 :id "room-title" (html-escape-string title))
          (html:div
           :id "right-pane"
+          ;; Title ------------------
+          (html:h1 :id "room-title"
+                   (html:img :class "room-icon" :src "@@icon-url@@"
+                             :align "absmiddle" :alt "")
+                   (html:br)
+                   (html-escape-string @@room-name/escd@@))
+          ;(html:div :class "room-description"
+          ;          (html-escape-string @@room-description/escd@@))
+          (monthly-navigate y m d)
           (html:div :class "chaton-logo"
                     "Built on "
                     (html:a :href "http://practical-scheme.net/chaton/"
                             "Chaton"))
-          (monthly-navigate y m d))
+          )
          (html:div
           :id "left-pane"
           (html:div
