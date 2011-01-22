@@ -117,26 +117,28 @@
 ;; the succeeding definitions (e.g. overriding site-specific parameter
 ;; with room-specific parameter).
 (define (load-config file)
-  (define (do-load file seed)
-    (with-input-from-file file
-      (lambda ()
-        (port-fold (lambda (s seed)
-                     (match s
-                       [('include path)
-                        (do-load (if (absolute-path? path)
-                                   path
-                                   (build-path (sys-dirname file) path))
-                                 seed)]
-                       [(var val) (acons var val seed)]))
-                   seed
-                   read))))
-  ;; added new entries for *.conf, those are may not in *.conf
-  ;; (because transfer old version)
-  ;; this cause not replace @@hoge@@ sed-like macro.
-  ;; to avoid this, set to fallback values #f for new var entries.
-  (do-load file (map
-                  (cut cons <> #f)
-                  *config-fallback-keys*)))
+  (let1 m (make-module #f)
+    (define (do-load file seed)
+      (with-input-from-file file
+        (lambda ()
+          (port-fold (lambda (s seed)
+                       (match s
+                         [('include path)
+                          (do-load (if (absolute-path? path)
+                                     path
+                                     (build-path (sys-dirname file) path))
+                                   seed)]
+                         [('use module) (eval `(use ,module) m)]
+                         [(var val) (acons var (eval val m) seed)]))
+                     seed
+                     read))))
+    ;; added new entries for *.conf, those are may not in *.conf
+    ;; (because transfer old version)
+    ;; this cause not replace @@hoge@@ sed-like macro.
+    ;; to avoid this, set to fallback values #f for new var entries.
+    (do-load file (map
+                    (cut cons <> #f)
+                    *config-fallback-keys*))))
 (define *config-fallback-keys*
   '(dont-expand-url
     use-localtime

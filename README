@@ -12,6 +12,11 @@
 
 * 主な変更内容
 - 設定可能項目の追加(詳細は後述)
+- conf内でScheme式(string-appendとか)が書けるようになった(evalするだけ)
+-- ただし、定義構文の値部分のみ。トップレベルにdefineとかは書けない
+-- conf内のトップレベルに(use hoge)と書くと、モジュールのuseが可能
+-- ※注意点：text.html-liteを使ってhtmlを埋め込む際には、必ず、
+             text.treeのtree->stringを使って文字列化する事
 - Read Archve の「本日のログ」の内容の厳密化/可視化/リダイレクトでなくする
 - ログや発言のタイムスタンプを、GMTで扱うかlocaltimeで扱うかをconfで選択可能に
 - 組み込みのログ検索機能
@@ -31,7 +36,7 @@
 -- chaton.cssの末尾に追加される
 - (use-localtime #f)
 -- 日時をGMTで扱うかサーバのlocaltimeで扱うか
-- (timestamp-omit-interval 240)
+- (timestamp-omit-interval (* 4 60))
 -- 日時を省略する間隔を秒数で指定
 - (dont-show-connect-num #f)
 -- 現在cometサーバに接続している人数を表示するか否か
@@ -41,7 +46,7 @@
 -- chaton-mobileの使用の有無
 - (dont-use-badge #f)
 -- badge.htmlおよびchaton-badgeの使用の有無
-- (extra-menu-html-list ())
+- (extra-menu-html-list '())
 -- メニュー部分に追加したいhtmlをlistで入れる(複数ok)
 - (room-html "")
 -- chaton-entryに埋め込むhtml
@@ -51,12 +56,7 @@
 
 * TODO
 ** やる
-- conf内でtext.html-liteとか使いたい
--- 無名モジュールを用意してevalする方向で対応を考える
--- 他の設定項目と整合性を取る必要が
---- 問題なさげ
--- string-appendとか他の手続きも許容する？
--- useだけ特別扱いする
+- chaton-browserのアイコンとタイトルを、chaton-entry同様に、右に移動
 - chaton-mobileの作成
 - loose-loginが#fの時に、session expiredが出た後にリロードしても直らない問題を
   どうにかする
