@@ -24,12 +24,6 @@
 - その他微細な変更
 
 
-* 追加されたファイル
-- README.orig 元々のChatonのREADMEはここに退避
-- chaton-search 前述の、組み込みのログ検索cgi
-- chaton-mobile 前述の、JavaScript非対応ブラウザの為の簡易クライアントcgi
-
-
 * 追加された設定項目と、そのデフォルト値
 - (dont-expand-url #f)
 -- 画像、youtube、ニコ動のurlを展開するかどうか
