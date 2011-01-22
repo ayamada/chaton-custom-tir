@@ -1,6 +1,4 @@
 #!/usr/bin/env gosh
-;; TODO: 他の各ファイルも参考にする事
-;;       (履歴表示系、POST受け取り系)
 
 (add-load-path "@@server-data-dir@@")
 
@@ -137,10 +135,22 @@
                                (cons (car lines) result2)
                                result2)))))))))))
 
+(define *msg:usage*
+  "入力欄に検索したい単語を入力してください(AND検索です)。")
+(define *msg:not-found*
+  "一件もみつかりませんでした")
+(define *msg:over-max-rows*
+  (list
+    "検索結果が"
+    *max-rows-of-result*
+    "件を越えています。"
+    (html:br)
+    "もう少し検索条件を絞り込んでみてください。"))
+
 (define (expand-results queries results)
   (cond
-    ((null? queries) "入力欄に検索したい単語を入力してください(AND検索です)。")
-    ((null? results) "一件もみつかりませんでした")
+    ((null? queries) *msg:usage*)
+    ((null? results) *msg:not-found*)
     (else
       (let* ((regexps (queries->regexps queries))
              (re-true (string->regexp
@@ -159,11 +169,7 @@
           (list
             (if over-rows?
               (html:p
-                (html:strong "検索結果が"
-                             *max-rows-of-result*
-                             "件を越えています。"
-                             (html:br)
-                             "もう少し検索条件を絞り込んでみてください。"))
+                (html:strong *msg:over-max-rows*))
               '())
             (html:ol
               (map
@@ -236,7 +242,7 @@
               :method "post"
               :id "search-form"
               (html:input :type "hidden" :name "_mb" :value "日本語")
-              (html:div "検索単語：")
+              (html:div "search words :")
               (html:ul
                 (map
                   (lambda (index)
@@ -253,7 +259,7 @@
                   :type "submit"
                   ;:name "search"
                   :id "search-button"
-                  :value "検索"))))
+                  :value "search"))))
           (html:div
             (expand-results queries results))
           )
