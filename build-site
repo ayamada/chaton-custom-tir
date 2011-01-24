@@ -130,6 +130,7 @@
                                    seed)]
                          [('use module) (eval `(use ,module) m) seed]
                          [('define . left) (eval `(define ,@left) m) seed]
+                         [('begin . left) (eval `(begin ,@left) m) seed]
                          [(var val) (acons var (eval val m) seed)]))
                      seed
                      read))))
