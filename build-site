@@ -129,6 +129,7 @@
                                      (build-path (sys-dirname file) path))
                                    seed)]
                          [('use module) (eval `(use ,module) m)]
+                         [('define . left) (eval `(define ,@left) m)]
                          [(var val) (acons var (eval val m) seed)]))
                      seed
                      read))))
