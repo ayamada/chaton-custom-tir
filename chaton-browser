@@ -66,12 +66,9 @@
       y
       m
       d
-      (or
-        (and-let* ((_ (file-exists? archfile))
-                   (idx (get-archfile-idx archfile y m d)))
-          (chaton-render-from-file archfile idx #f))
-        (html:div :style "text-align: center"
-                  (html:strong "(entry not found)")))
+      (and-let* ((_ (file-exists? archfile))
+                 (idx (get-archfile-idx archfile y m d)))
+        (chaton-render-from-file archfile idx #f))
       (file-is-symlink? archfile))))
 
 (define (make-page y m d content no-cache?)
@@ -112,7 +109,12 @@
           (html:div
            :id "archive-pane"
            (navigate-bar y m d)
-           (html:div :id "archive-view" content)
+           (html:div
+            :id "archive-view"
+            (if (or (not content) (null? content))
+              (html:div :style "text-align: center"
+                        "(entry not found)")
+              content))
            (navigate-bar y m d))))))))
 
 (define (navigate-bar y m d)
