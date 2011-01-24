@@ -198,9 +198,9 @@
     (rxmatch-case url
       [#/\.(?:jpg|gif|png)$/i () (render-url-image url)]
       [#/^http:\/\/(\w{2,3}\.youtube\.com)\/watch\?v=([\w-]{1,12})/ (_ host vid)
-       (render-url-youtube host vid)]
+       (render-url-youtube url host vid)]
       [#/^http:\/\/www\.nicovideo\.jp\/watch\/(\w{1,13})/ (_ vid)
-       (render-url-nicovideo vid)]
+       (render-url-nicovideo url vid)]
       [else (render-url-default url)])))
 
 (define (render-url-default url)
@@ -213,24 +213,24 @@
           :onclick "window.open(this.href); return false;"
           (html:img :src url :alt url :onload "checkImageSize(this);")))
 
-(define (render-url-youtube host vid)
+(define (render-url-youtube url host vid)
   (html:iframe :title "YouTube video player"
                :class "youtube-player"
                :type "text/html"
                :width "@@embed-youtube-width@@"
                :height "@@embed-youtube-height@@"
                :src #`"http://,|host|/embed/,|vid|"
-               :frameborder "0"))
+               :frameborder "0"
+               :onload "scrollToBottom();"
+               (html:a :href url (html-escape-string url))))
 
-(define (render-url-nicovideo vid)
-  (html:iframe :width "314" :height "176"
+(define (render-url-nicovideo url vid)
+  (html:iframe :width "312" :height "176"
                :src #`"http://ext.nicovideo.jp/thumb/,|vid|"
                :scrolling "no" :class "nicovideo"
                :frameborder "0"
                :onload "scrollToBottom();"
-               (html:a :href #`"http://www.nicovideo.jp/watch/,|vid|"
-                       (html-escape-string
-                        #`"http://www.nicovideo.jp/watch/,|vid|"))))
+               (html:a :href url (html-escape-string url))))
 
 (define (time->rfc822-date-string seconds)
   (date->string (time-utc->date (make <time> :second seconds)) "~a, ~e ~b ~Y ~X ~z"))

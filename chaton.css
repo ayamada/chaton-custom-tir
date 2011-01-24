@@ -61,6 +61,6 @@ img.wshrunk { width: @@img-size-limit@@px; }
 img.hshrunk { height: @@img-size-limit@@px; }
 
 youtube-player { margin: 3px; padding: 0; border: none; }
-iframe.nicovideo { margin: 3px; border: none; }
+iframe.nicovideo { margin: 3px; border: solid 1px #CCC; }
 
 @@extra-css@@
