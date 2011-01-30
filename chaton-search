@@ -33,7 +33,8 @@
 
 (define (emit-content params)
   (let* ((mode (cgi-get-parameter "m" params :default "entry"))
-         (queries (get-queries params))
+         (params-true (charconv-cgi-param params))
+         (queries (get-queries params-true))
          (results (if (equal? mode "day")
                     (queries->day-results queries)
                     (queries->entry-results queries))))
@@ -45,18 +46,11 @@
       (the-page mode queries results))))
 
 (define (get-queries params)
-  ;; TODO: :defaultは#fにして、#fの場合はquery-stringを全部連結したものを採用
-  ;;       すべき。空文字列の時の対応もちゃんと書く事
-  (let* ((_mb (cgi-get-parameter "_mb" params :default "日本語"))
-         (params-encoding (ces-guess-from-string _mb "*JP")))
-    (define (_mb-converter str)
-      (ces-convert str params-encoding))
-    (filter
-      (lambda (str)
-        (not (string=? str "")))
-      (cgi-get-parameter "q" params
-                         :list #t
-                         :convert _mb-converter))))
+  (filter
+    (lambda (str)
+      (not (string=? str "")))
+    (cgi-get-parameter "q" params
+                       :list #t)))
 
 (define (queries->regexps queries)
   (map

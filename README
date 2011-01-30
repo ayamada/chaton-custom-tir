@@ -49,6 +49,8 @@
 -- 検索機能にchaton-searchを使うか、search.html(google検索)を使うか
 - (use-chaton-mobile #f)
 -- chaton-mobileの使用の有無
+- (chaton-mobile-rows 5)
+-- chaton-mobileでの最近の発言の最大表示数
 - (dont-use-badge #f)
 -- badge.htmlおよびchaton-badgeの使用の有無
 - (extra-menu-html-list '())
@@ -61,6 +63,14 @@
 
 * TODO
 ** やる
+- speedygosh向け設定追加
+-- 基本的には、各cgiのshebang部の書き換えを行うだけだが、非cgiはspeedygosh化
+   しない方がいいので、個別に設定を用意する(仮)
+--- 別に無差別にspeedygosh化してもいいのでは？
+- fastcgi向け設定追加
+-- .htaccessのハンドラ変更と、
+   各cgiで(use www.fastcgi)とかwith-fastcgiで囲むとかが必要
+--- 本当にfcgiモジュールが入ってるか事前に確認するようにする事
 - chaton-mobileの作成
 - loose-loginが#fの時に、session expiredが出た後にリロードしても直らない問題を
   どうにかする
@@ -68,6 +78,7 @@
 --- ブラウザ側は古いセッションを維持しているのに、サーバ側がexpireさせているのが原因？？？
 --- もしかしたら、原因が二通りあるかもしれない。一つは上の通りで、もう一つは、cometサーバが、何らかの原因で長時間接続しているクライアントのセッションのtimestampが更新されてない時がある？
 ** あとまわし
+- 自分の発言でも、タイトル部分の未読数が増えるのを抑制する
 - htaccessいじって、indexをmにし、モバイルモードかどうかの切り替えは
   cookieで制御する(デフォルトはモバイルモード)
 -- これもconfファイルを見て、挙動を変更する必要あり

@@ -10,6 +10,8 @@
   (use file.util)
   (use util.match)
   (use util.list)
+  (use www.cgi)
+  (use gauche.charconv)
   (use gauche.fcntl)
   (use gauche.sequence)
   (use gauche.experimental.lamb)
@@ -23,8 +25,9 @@
           decompose-entry
           make-anchor-string
           make-permalink
+          html-format-entry
 
-          +room-url+ +archive-url+
+          +room-url+ +archive-url+ +mobile-url+
           
           +datadir+ +current-file+ +sequence-file+
           +last-post-file+ +num-chatters-file+
@@ -35,7 +38,15 @@
 
           +show-stack-trace+
 
+          make-state
+          state-chatter
+          state-ip
+          state-timestamp
+
           get-systime
+          get-timestamp-omit-interval
+          charconv-cgi-param
+          make-navigation-html
           
           with-output-to-file))
 (select-module chaton)
@@ -43,6 +54,7 @@
 ;;; Some common constants
 (define-constant +room-url+    "@@httpd-url@@@@url-path@@")
 (define-constant +archive-url+ (build-path +room-url+ "a"))
+(define-constant +mobile-url+ (build-path +room-url+ "m"))
 
 (define-constant +datadir+ (or (sys-getenv "CHATON_DATADIR")
                                "@@server-data-dir@@data"))
@@ -132,7 +144,7 @@
                     :class "entry-header"
                     (html:span :class "timestamp"
                                (sys-strftime "%Y/%m/%d %T %Z" (get-systime sec)))
-                    (html:span :class "chatter" nick)))
+                    (html:span :class "chatter" (html-escape-string nick))))
                 ,(html:a :class "permalink-anchor"
                          :id #`"anchor-,anchor-string"
                          :href permalink :name permalink :target "_parent"
@@ -173,23 +185,25 @@
                       (sys-strftime "%Y/%m/%d" (get-systime sec))
                       anchor)))
 
-(define (html-format-entry entry-text anchor-string)
+(define (html-format-entry entry-text anchor-string :optional (dont-expand-url @@dont-expand-url@@))
   (if (#/\n/ entry-text)
     (html:pre :class "entry-multi" :id anchor-string
-              (safe-text entry-text))
+              (safe-text entry-text #t))
     (html:div :class "entry-single" :id anchor-string
-              (html:span (safe-text entry-text)))))  
+              (html:span (safe-text entry-text dont-expand-url)))))  
 
 (define *url-rx* #/https?:\/\/(\/\/[^\/?#\s]*)?([^?#\s\"]*(\?[^#\s\"]*)?(#[^\s\"]*)?)/)
 
-(define (safe-text text)
+(define (safe-text text :optional (dont-expand-url @@dont-expand-url@@))
   (let loop ([s text] [r '()])
     (cond
      [(string-null? s) (reverse r)]
      [(*url-rx* s)
       => (^(m)
            (loop (m'after)
-                 `(,(render-url (m 0)),(html-escape-string (m'before)),@r)))]
+                 `(,(render-url (m 0) dont-expand-url)
+                   ,(html-escape-string (m'before))
+                   ,@r)))]
      [else (reverse (cons (html-escape-string s) r))])))
 
 (define (render-url url :optional (dont-expand-url @@dont-expand-url@@))
@@ -291,6 +305,47 @@
   (or
     @@timestamp-omit-interval@@
     240))
+
+(define (charconv-cgi-param params)
+  (let* ((_mb (or
+                (cgi-get-parameter "_mb" params :default #f)
+                (tree->string params)))
+         (params-encoding (ces-guess-from-string _mb "*JP")))
+    (define (_mb-convert str)
+      (if (string? str)
+        (ces-convert str params-encoding)
+        str)) ; for (eq? str #t)
+    (map
+      (lambda (key+vals)
+        (map
+          _mb-convert
+          key+vals))
+      params)))
+
+(define (make-navigation-html :key (mobile-mode? #f))
+  (html:div
+    :id "navigation"
+    (intersperse
+      " | "
+      (filter
+        identity
+        (list*
+          (html:a :href "a/today" "Read Archive")
+          (html:a :href "@@httpd-url@@@@url-path@@var/index.rdf" "RSS")
+          (cond
+            (mobile-mode?
+              (html:a :href "@@httpd-url@@@@url-path@@entry" "Original mode"))
+            (@@use-chaton-mobile@@
+              (html:a :href "@@httpd-url@@@@url-path@@m" "Mobile mode"))
+            (else #f))
+          (if @@use-internal-search@@
+            (html:a :href "@@httpd-url@@@@url-path@@s" "Search")
+            (html:a :href "@@httpd-url@@@@url-path@@search.html" "Search"))
+          (if @@dont-use-badge@@
+            #f
+            (html:a :href "@@httpd-url@@@@url-path@@badge.html" "Badge"))
+          (quote
+            @@extra-menu-html-list/escd@@))))))
 
 ;; This feature should be built-in!
 

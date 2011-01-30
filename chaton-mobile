@@ -9,36 +9,30 @@
   (use text.tree)
   (use file.util)
   (use srfi-1)
+  (use srfi-13)
+  (use rfc.uri)
+  (use chaton)
   (export mobile-main))
 (select-module chaton.mobile)
 
 (define-constant +chaton-url+ "http://practical-scheme.net/chaton/")
-(define-constant +viewer+  "@@httpd-url@@:@@comet-port@@/")
 (define-constant +credential+ "@@server-data-dir@@auth")
 
 (define (mobile-main args)
   (set! (port-buffering (current-error-port)) :line)
-  (cgi-main (lambda (params)
-              (emit-content (cgi-param-conv-jp params)))
-            :on-error
-            (and +show-stack-trace+
-                 (lambda (e)
-                   `(,(cgi-header)
-                     ,(html:pre
-                       (html-escape-string
-                        (call-with-output-string
-                          (cut with-error-to-port <> (cut report-error e)))))))))
+  (cgi-main
+    (lambda (params-orig)
+      (emit-content (charconv-cgi-param params-orig)))
+    :on-error (and
+                +show-stack-trace+
+                (lambda (e)
+                  `(,(cgi-header)
+                    ,(html:pre
+                      (html-escape-string
+                       (call-with-output-string
+                         (cut with-error-to-port <> (cut report-error e)))))))))
   0)
 
-(define (cgi-param-conv-jp params)
-  (let* ((_mb (cgi-get-parameter "_mb" params :default #f))
-         )
-    ;; TODO: _mbがない場合、params全部結合させたものを採用する
-    ;;       (それでもなかったらgauche-character-encodingで)
-    ;; TODO: この部分の処理はchaton-searchと共通なので、あとで
-    ;;       chaton.scm等に移動させる
-    ;; TODO: あとで実装する
-    params))
 
 (define (emit-content params)
   ;; ディスパッチ
@@ -53,34 +47,60 @@
       ;((:mode) (emit-content-mode params))
       (else (emit-content-form params)))))
 
+(define (encode-js str)
+  (with-string-io
+    str
+    (lambda ()
+      (let loop ()
+        (let1 c (read-char)
+          (unless (eof-object? c)
+            (let1 c-num (char->ucs c)
+              (cond
+                ((< c-num 256)
+                 (display (uri-encode-string (string c))))
+                ((< c-num 65536)
+                 (format #t "%u~4,'0x" c-num))
+                (else
+                 (format #t "%U~8,'0x" c-num))))
+            (loop)))))))
+
+(define (decode-js str)
+  ;; ( http://www.openspc2.org/JavaScript/escape/index.html のUTF-8の項目)
+  (regexp-replace-all
+    #/\%((?:[0-9a-fA-F]{2})|(?:u[0-9a-fA-F]{4})|(?:U[0-9a-fA-F]{8}))/
+    str
+    (lambda (m)
+      (let* ((match-str (m 1))
+             (head-char (string-ref match-str 0)))
+        ;; (m 1) => "12" or "u1234" or "U12345678"
+        (cond
+          [(char=? #\u head-char)
+           (read-from-string (string-append "\"" "\\" match-str "\""))]
+          [(char=? #\U head-char)
+           (read-from-string
+             (string-append "\"" "\\" (string-downcase match-str) "\""))]
+          [else
+            (read-from-string (string-append "\"" "\\x" match-str "\""))])))))
+
 (define (get-nick-from-cookie)
   ;; Cookie: chaton-nickname=%u5C71%u7530%u592A%u90CE
   (and-let* ((cookie-params (cgi-parse-parameters :query-string ""
                                                   :merge-cookies #t))
-             (nick (cgi-get-parameter "chaton-nickname"
-                                      cookie-params
-                                      :default #f))
+             (nick-src (cgi-get-parameter "chaton-nickname"
+                                          cookie-params
+                                          :default #f))
+             (nick (decode-js nick-src))
              )
-    ;; TODO: charsetやその他のdecodeが必要な筈
-    ;;       場合によってはブラウザによる差異を吸収する必要あり
-    ;; TODO: ブラウザによる差異を考慮する場合、m自身が名前を保持するcookieは
-    ;;       別エントリにした方がいいのでは？
-    ;;       (mが記録したcookieをブラウザが読めるとは限らない為)
-    ;;       しかし、その場合、mで記憶した名前とentryで記憶した名前は
-    ;;       別扱いになるという事になる。ちょっと微妙。
-    ;;       とりあえずブラウザによる差異が存在するかどうかぐらいは調べる事。
-    ;;       - 調べた。JavaScriptの組み込みのescape(), unescape()関数による。
-    ;;         よって、これら互換の入出力にすればok。
-    ;;         firefoxもieも、%uXXXX形式に対応しているようだ。
-    ;; ( http://www.openspc2.org/JavaScript/escape/index.html のUTF-8の項目)
     nick))
 
 (define (emit-content-form params)
-  (let ((nick (or
-                (cgi-get-parameter "n" params :default #f)
-                (get-nick-from-cookie)
-                ""))
-        )
+  (let* ((nick-from-cookie (get-nick-from-cookie))
+         (remember-me (not (not nick-from-cookie)))
+         (nick (or
+                 (cgi-get-parameter "nick" params :default #f)
+                 nick-from-cookie
+                 ""))
+         )
     (list
       (cgi-header :content-type "text/html; charset=utf-8"
                   :pragma "no-cache"
@@ -95,73 +115,121 @@
           ;(html:script :src "@@prototype-url@@" :type "text/javascript")
           ;(html:script :src "@@httpd-url@@@@url-path@@@@chaton-js@@"
           ;             :type "text/javascript")
-          ;; TODO: 簡単なJavaScriptでfocusを入力欄にする
           )
         (html:body :id "the-body"
-                   (the-form nick)
+                   (the-form nick remember-me)
                    (html:hr)
                    (the-recentlog)
                    (the-footer)
                    )))))
 
-(define (the-form nick)
-  ;; 各種リンク等もこの部分に入れる
+(define (the-form nick remember-me)
   (html:form
     :action "@@httpd-url@@@@url-path@@m"
     :method "post"
     :target "_self"
+    :name "send"
     (html:div
       (html:input :type "hidden" :name "c" :value "submit")
       (html:input :type "hidden" :name "_mb" :value "日本語")
-      ;; TODO: size指定とか入れるべき
-      (html:input :type "text" :name "text" :id "post-text" :value "")
+      (html:input :type "text" :name "text"
+                  :id "post-text" :value ""
+                  :size "32"
+                  :style "width:50%"
+                  )
       (html:input :type "submit" ;:name "submit"
-                  :id "post-submit" :value "chat")
+                  :id "post-submit" :value "chat / update")
       )
       (html:script
         "<!--\n"
-        "focusForm();\n"
+        "self.document.send.text.focus();\n"
         "// -->"
         )
     (html:div
       "Nickname:"
       (html:input :type "text" :name "nick" :id "post-nick" :value nick)
-      (html:input :type "checkbox" :name "remember" :id "post-remember")
-      (html:label :for "remember" "Remember me")
+      (html:input :type "checkbox" :name "remember" :id "post-remember"
+                  :value "1"
+                  :checked (if remember-me "checked" #f))
+      (html:label :for "post-remember" "Remember me")
       )
-    (html:div
-      :id "navigation"
-      (html:a :href "@@httpd-url@@@@url-path@@entry" "Original mode")
-      " | "
-      (html:a :href "@@httpd-url@@@@url-path@@a/today" "Read Archive")
-      " | "
-      (html:a :href "@@httpd-url@@@@url-path@@s" "Search")
-      )
+    ;(make-navigation-html :mobile-mode? #t)
     ))
 
 (define (the-recentlog)
-  ...)
+  (let1 counter 0
+    (define (renderer entry last-state)
+      (inc! counter)
+      (if (< (or @@chaton-mobile-rows@@ 5) counter)
+        (values '() last-state)
+        (receive (nick sec usec text ip) (decompose-entry entry)
+          (values `(,(if (and (equal? nick (state-chatter last-state))
+                              (equal? ip (state-ip last-state))
+                              (< (abs (- (state-timestamp last-state) sec)) 
+                                 (get-timestamp-omit-interval)))
+                       '()
+                       (html:div
+                        :class "entry-header"
+                        (html:span :class "chatter" (html-escape-string nick))
+                        " "
+                        (html:small
+                          (sys-strftime "(%H:%M)" (get-systime sec)))))
+                    ,(html-format-entry text #f #t))
+                  (make-state nick ip sec)))))
+
+    (chaton-render-from-file
+      +current-file+
+      0
+      #f
+      :renderer renderer
+      :newest-first #t
+      )))
 
 (define (the-footer)
-  ;; TODO: 転送量を抑える為に無しにすべきかも
   (list
     (html:hr)
+    (make-navigation-html :mobile-mode? #t)
+    (html:hr)
     (html:h1 :id "room-title"
-             (html:img :class "room-icon" :src "@@icon-url@@" :align "absmiddle" :alt "")
+             ;(html:img :class "room-icon" :src "@@icon-url@@" :align "absmiddle" :alt "")
              ;(html:br)
              (html-escape-string @@room-name/escd@@))
     ;(html:div :class "room-description"
     ;          (html-escape-string @@room-description/escd@@))
     (html:div :class "chaton-logo"
               "Built on "(html:a :href +chaton-url+ "Chaton"))
-    )
-  ;'()
-  )
+    ))
 
 (define (emit-content-submit params)
-  ;; Cookie: chaton-nickname=%u5C71%u7530%u592A%u90CE
-  ;; TODO: 名前クッキーを発行する必要がある(できればPCと共用で)
-  ...)
+  ;; 要求される動作:
+  ;; - 以下でどのような操作がなされようと、mにリダイレクトされる
+  ;; - textが空文字列なら、ログ追記は行わない
+  ;; - nickが空文字列なら、ログ追記は行わない？(適当な仮名を与えてもokかも)
+  ;; - text, nick, ip等が一つ前の発言と同じなら、ログ追記は行わない
+  ;; - リダイレクトについて
+  ;; -- 後述のクッキーが発行される
+  ;; -- remember-meが偽値の時のみ、nickに対応するパラメータがqueryに付与される
+  ;; - クッキーについて
+  ;; -- remember-meが真なら、名前クッキーを発行する
+  ;; -- remember-meが偽なら、名前クッキーを消去する
+  ;; -- 毎回、mode=mobileクッキーを発行する
+  ;;    (これはchaton-browserからの戻りリンク等で使う)
+  (let ((text (cgi-get-parameter "text" params :default ""))
+        (nick (cgi-get-parameter "nick" params :default ""))
+        (remember-me (cgi-get-parameter "remember" params))
+        )
+    ;; textが空文字列なら、ログ追記は行わない
+    ;; nickが空文字列なら、
+    ;; TODO: remember-meを見て、名前クッキーを発行/消去する必要がある
+    ;; TODO: あとで
+    ;; TODO: パラメータから名前を引き継ぐ必要あり
+    (let ((cookie #f)
+          (next-url +mobile-url+))
+      (cgi-header
+        :set-cookie cookie
+        :location next-url
+        :pragma "no-cache"
+        :cache-control "no-cache"))))
 
 ;;;===================================================================
 

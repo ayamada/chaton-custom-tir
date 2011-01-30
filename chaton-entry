@@ -12,6 +12,7 @@
   (use file.util)
   (use srfi-1)
   (use util.list)
+  (use chaton)
   (export entry-main))
 (select-module chaton.entry)
 
@@ -72,26 +73,7 @@
      )
     ;; Left pane --------------
     (html:div :id "left-pane"
-     (html:div :id "navigation"
-      (intersperse
-        " | "
-        (filter
-          identity
-          (list*
-            (html:a :href "a/today" "Read Archive")
-            (html:a :href "@@httpd-url@@@@url-path@@var/index.rdf" "RSS")
-            (if @@use-chaton-mobile@@
-              ;(html:a :href "@@httpd-url@@@@url-path@@m" "Mobile mode")
-              (html:a :href "javascript:alert('準備中')" "Mobile mode")
-              #f)
-            (if @@use-internal-search@@
-              (html:a :href "@@httpd-url@@@@url-path@@s" "Search")
-              (html:a :href "@@httpd-url@@@@url-path@@search.html" "Search"))
-            (if @@dont-use-badge@@
-              #f
-              (html:a :href "@@httpd-url@@@@url-path@@badge.html" "Badge"))
-            (quote
-              @@extra-menu-html-list/escd@@)))))
+     (make-navigation-html :mobile-mode? #f)
      (html:div :id "view-frame-container"
       (html:iframe :src #`"@@httpd-url@@:@@comet-port@@/?c=,cid"
                    :id "view-frame"))
@@ -102,7 +84,7 @@
         (html:td
          (html:input :type "text" :name "nick" :id "post-nick")
          (html:input :type "checkbox" :name "remember" :id "post-remember")
-         (html:label :for "remember" "Remember me")))
+         (html:label :for "post-remember" "Remember me")))
        (html:tr
         (html:td "Text:")
         (html:td

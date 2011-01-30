@@ -148,6 +148,7 @@
     dont-show-connect-num
     use-internal-search
     use-chaton-mobile
+    chaton-mobile-rows
     dont-use-badge
     extra-menu-html-list
     room-html
