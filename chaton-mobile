@@ -136,17 +136,18 @@
       (html:input :type "hidden" :name "_mb" :value "日本語")
       (html:input :type "text" :name "text"
                   :id "post-text" :value ""
-                  :size "32"
-                  :style "width:50%"
+                  :size "48"
+                  ;:style "width:50%"
                   )
       (html:input :type "submit" ;:name "submit"
                   :id "post-submit" :value "chat / update")
+      (html:small (sys-strftime "(%T)" (get-systime (sys-gettimeofday))))
       )
-      (html:script
-        "<!--\n"
-        "self.document.send.text.focus();\n"
-        "// -->"
-        )
+    (html:script
+      "<!--\n"
+      "self.document.send.text.focus();\n"
+      "// -->"
+      )
     (html:div
       "Nickname:"
       (html:input :type "text" :name "nick" :id "post-nick" :value nick)
