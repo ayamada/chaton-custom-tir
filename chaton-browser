@@ -145,8 +145,6 @@
                      (= m today-m)
                      (= d today-d)))
          )
-    (define (month-link-active yyyy mm)
-      (html:p :class "month-link-active" (format "~4,'0d/~2,'0d" yyyy mm)))
     (html:div
       :class "monthly-navigate"
       `(,(if (= m 1) (month-link (- y 1) 12 #f) (month-link y (- m 1) #f))
@@ -155,16 +153,19 @@
          ,(if (= m 12) (month-link (+ y 1) 1 #t) (month-link y (+ m 1) #t)))
       (if (or
             (and (= y today-y) (= m today-m))
+            (and (= y today-y) (= (+ m 1) today-m))
             (and (= (+ y 1) today-y) (= 12 m) (= 1 today-m)))
-        '()
-        (month-link-active today-y today-m))
-      (html:ul
-        (html:li :class (if is-today "navigate-today" "navigate-other")
-                 (html:a :href (apath today-y today-m today-d)
-                         #`",(ymd today-y today-m today-d) (today)"
-                         ))))
-    ))
+        (html:ul
+          (html:li :class (if is-today "navigate-today" "navigate-other")
+                   (html:a :href (apath today-y today-m today-d)
+                           #`",(ymd today-y today-m today-d) (today)")))
+        (html:p :class "month-link"
+                (html:a :href (apath today-y today-m today-d)
+                        #`",(ymd today-y today-m today-d) (today)")))
+      )))
 
+(define (month-link-active y m)
+  (html:p :class "month-link-active" (format "~4,'0d/~2,'0d" y m)))
 (define (month-link y m head?)
   (let1 ym (format "~4,'0d/~2,'0d" y m)
     (if (file-exists? (build-path +datadir+ ym))
