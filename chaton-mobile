@@ -11,7 +11,9 @@
   (use srfi-1)
   (use srfi-13)
   (use rfc.uri)
+  (use rfc.cookie)
   (use chaton)
+  (require "./chaton-poster-@@room-name@@")
   (export mobile-main))
 (select-module chaton.mobile)
 
@@ -202,10 +204,12 @@
 
 (define (emit-content-submit params)
   ;; 要求される動作:
-  ;; - 以下でどのような操作がなされようと、mにリダイレクトされる
+  ;; - 以下でどのような操作がなされようと、基本的にはmにリダイレクトされる
   ;; - textが空文字列なら、ログ追記は行わない
   ;; - nickが空文字列なら、ログ追記は行わない？(適当な仮名を与えてもokかも)
+  ;;   考えた結果、nickに適当な文字列を入れる事に
   ;; - text, nick, ip等が一つ前の発言と同じなら、ログ追記は行わない
+  ;; -- race conditionが起こらないように完全にする必要まではない、大体でok
   ;; - リダイレクトについて
   ;; -- 後述のクッキーが発行される
   ;; -- remember-meが偽値の時のみ、nickに対応するパラメータがqueryに付与される
@@ -214,19 +218,44 @@
   ;; -- remember-meが偽なら、名前クッキーを消去する
   ;; -- 毎回、mode=mobileクッキーを発行する
   ;;    (これはchaton-browserからの戻りリンク等で使う)
-  (let ((text (cgi-get-parameter "text" params :default ""))
-        (nick (cgi-get-parameter "nick" params :default ""))
-        (remember-me (cgi-get-parameter "remember" params))
-        )
-    ;; textが空文字列なら、ログ追記は行わない
-    ;; nickが空文字列なら、
-    ;; TODO: remember-meを見て、名前クッキーを発行/消去する必要がある
-    ;; TODO: あとで
-    ;; TODO: パラメータから名前を引き継ぐ必要あり
-    (let ((cookie #f)
-          (next-url +mobile-url+))
+  (let* ((text (cgi-get-parameter "text" params :default ""))
+         (nick-src (cgi-get-parameter "nick" params :default ""))
+         (nick (if (string=? "" nick-src)
+                 (format "somebody(~a)" (cgi-get-metavariable "REMOTE_ADDR"))
+                 nick-src))
+         (remember-me (cgi-get-parameter "remember" params))
+         (max-age-epoch (* 10 365 24 60 60))
+         )
+    (define (is-dup-entry?)
+      ;; TODO: あとで実装する
+      #f)
+    (define (make-cookie-args max-age-epoch)
+      `(
+        :path "@@cookie-path@@"
+        :max-age ,max-age-epoch
+        :expires ,(if (zero? max-age-epoch)
+                    0
+                    (+ (sys-time) max-age-epoch))
+        ))
+    (when (and
+            (string-length text) ; textが空文字列でない時のみ、ログ追記を行う
+            (not (is-dup-entry?))) ; 二重書き込み簡易チェック
+      (with-module chaton.poster
+        (chaton-post nick text)))
+    (let ((cookies (construct-cookie-string
+                     ;; TODO: この段階のencode-jsだとnickが二重にencodeされるかもしれない、もしそうなら、自前でクッキーの構築をやらなくてはいけなくなる
+                     `(("chaton-nickname" ,@(if remember-me
+                                              (cons (encode-js nick) (make-cookie-args max-age-epoch))
+                                              (cons "" (make-cookie-args 0))))
+                       ("chaton-mode" "mobile" ,@(make-cookie-args max-age-epoch)))
+                     0))
+          (next-url (if remember-me
+                      +mobile-url+
+                      (format "~a?nick=~a"
+                              +mobile-url+
+                              (uri-encode-string nick)))))
       (cgi-header
-        :set-cookie cookie
+        :cookies cookies
         :location next-url
         :pragma "no-cache"
         :cache-control "no-cache"))))

@@ -20,14 +20,7 @@
   (cgi-main (lambda (params)
               (let ([nick (cgi-get-parameter "nick" params :default #f)]
                     [text (cgi-get-parameter "text" params :default #f)])
-                (make-directory* +datadir+) ;ensure
-                (chaton-with-exclusive-locking
-                 (lambda ()
-                   (call-with-output-file +current-file+
-                     (cut update <>
-                          (string-trim-both nick) (string-trim-both text))
-                     :if-exists :append)
-                   (update-rss)))
+                (chaton-post nick text)
                 (emit-reply)))
             :on-error
             (and +show-stack-trace+
@@ -38,6 +31,16 @@
                         (call-with-output-string
                           (cut with-error-to-port <> (cut report-error e)))))))))
   0)
+
+(define (chaton-post nick text)
+  (make-directory* +datadir+) ;ensure
+  (chaton-with-exclusive-locking
+   (lambda ()
+     (call-with-output-file +current-file+
+       (cut update <>
+            (string-trim-both nick) (string-trim-both text))
+       :if-exists :append)
+     (update-rss))))
 
 (define (emit-reply)                    ;dummy
   (write-tree `(,(cgi-header) ,(html:html (html:head) (html:body)))))

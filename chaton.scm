@@ -334,7 +334,7 @@
           (html:a :href "@@httpd-url@@@@url-path@@var/index.rdf" "RSS")
           (cond
             (mobile-mode?
-              (html:a :href "@@httpd-url@@@@url-path@@entry" "Original mode"))
+              (html:a :href "@@httpd-url@@@@url-path@@" "Chaton mode"))
             (@@use-chaton-mobile@@
               (html:a :href "@@httpd-url@@@@url-path@@m" "Mobile mode"))
             (else #f))
