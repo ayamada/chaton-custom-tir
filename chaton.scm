@@ -235,6 +235,7 @@
                :height "@@embed-youtube-height@@"
                :src #`"http://,|host|/embed/,|vid|"
                :frameborder "0"
+               :allowFullScreen #t
                :onload "scrollToBottom();"
                (html:a :href url (html-escape-string url))))
 
