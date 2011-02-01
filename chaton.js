@@ -10,6 +10,7 @@
 
 function post() {
   setNickCookie($F('post-remember'));
+  setModeCookie();
   if ($F('post-nick') == '' || $F('post-text') == '') return;
   disablePost();
   new Ajax.Request("@@httpd-url@@@@url-path@@@@cgi-script@@",
@@ -71,6 +72,12 @@ function setNickCookie(set) {
             + ';expires=Thu, 01-Jan-1970 00:00:01 GMT'
             + ';path=@@cookie-path@@';
     }
+}
+   
+function setModeCookie() {
+    document.cookie = 'chaton-mode=chaton'
+        + ';expires=Tue, 19 Jan 2038 00:00:00 GMT'
+        + ';path=@@cookie-path@@';
 }
    
 // Sequence count monitor -----------------------------
