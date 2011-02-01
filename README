@@ -69,34 +69,40 @@
 
 * TODO
 ** やる
+- chaton-entryとchaton-mobileの統合
+-- chaton-entryが親になる
+--- chaton-entry内で、chaton-mobileをrequireする
+-- chaton-entryのentry-mainを実行する前に、先に、paramsとcookieとconfを見て、
+   どちらを実行するかを決定する
+--- entry-mainやmobile-main内にcgi-mainがある関係上、パラメータの取得は
+    cgi-parse-parameterを使う事
+--- 「Chaton mode」と「Mobile mode」を行き来するスイッチへのディスパッチは、
+    この段階で行う必要がある(だからparamを見る必要がある)
+--- これに伴い、chaton-mobileのpost時のchaton-modeクッキー発行と、
+    chaton.jsのchaton-modeクッキー発行は不要になる
+-- リンクメニューの「Mobile mode」「Chaton mode」はそれぞれへのリンクではなく
+   cookie変更後リダイレクトとする
+-- confに(chaton-mobile-as-default #f)の項目を追加
+-- 統合の結果、chaton-mobileはhtdocs上に置く必要がなくなるので、
+   chaton-mobile.scmとして、chaton.scmと同じ場所に置く？
 - speedygosh向け設定追加
 -- 基本的には、各cgiのshebang部の書き換えを行うだけだが、非cgiはspeedygosh化
    しない方がいいので、個別に設定を用意する(仮)
 --- 別に無差別にspeedygosh化してもいいのでは？
-- chaton-mobileの作成
+-- conf項目に、(shebang-filter #f)を追加。
+   この項目が二引数を取る手続きなら、その返り値がshebang行になる。
+   引数は元のshebang行と、ファイル名(chaton-entry等)。
 - loose-loginが#fの時に、session expiredが出た後にリロードしても直らない問題を
   どうにかする
 -- 再現手順: chatonを開いたままブラウザを再起動する
 --- ブラウザ側は古いセッションを維持しているのに、サーバ側がexpireさせているのが原因？？？
 --- もしかしたら、原因が二通りあるかもしれない。一つは上の通りで、もう一つは、cometサーバが、何らかの原因で長時間接続しているクライアントのセッションのtimestampが更新されてない時がある？
-- chaton-browseとchaton-searchからの戻りリンクを、conf設定とcookie判定によって、
-  chaton-entryかchaton-mobileかに分岐させる。
-  (conf設定によってuse-chaton-mobileが#fの場合は、cookie判定を無視して、
-   強制的にchaton-entry一択とする事)
--- このコードは共有されるべきなのでchaton.scmに書く
-- chaton-mobileとchaton-entryの統合、もしくはスイッチcgiの新設
--- スクリプトがモジュールとしてもロードできる形になっているので、それを利用する
 ** あとまわし
 - 自分の発言でも、タイトル部分の未読数が増えるのを抑制する
 -- 自分が発言した際に、比較用タイムスタンプを増加させればok？
 - githubに保存する際に、オリジナルと改変部分とでブランチ変更するの忘れてたので、このままではrebaseできない。なんとかすること
 -- このままでもrebaseできるなら不要。できる？
 --- オリジナルの方を、別ブランチ名で追加すればいいだけ？
-- htaccessいじって、indexをmにし、モバイルモードかどうかの切り替えは
-  cookieで制御する(デフォルトはモバイルモード)
--- これもconfファイルを見て、挙動を変更する必要あり
---- 項目名を決める事
--- やらなくてもいいかもしれない
 - 改造内容を、 ChangeLog にも反映
 -- 元々、個人的に使う為に改造してた為、追記しないままここまできてしまったが
 -- あとでかんがえる
@@ -104,6 +110,7 @@
 -- .htaccessのハンドラ変更と、
    各cgiで(use www.fastcgi)とかwith-fastcgiで囲むとかが必要
 --- 本当にfcgiモジュールが入ってるか事前に(＝build-siteで)確認する必要がある
+-- ラッパー関数をchaton.scmに作って、それをcgi-mainの代わりに使うようにする
 ** やらない
 - client/chaton/client.scm の chaton-permalink の元になる日時の扱いをどうするか
 -- client/chaton/client.scm は要するに、
