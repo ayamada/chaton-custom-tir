@@ -75,6 +75,7 @@
 -- 基本的には、各cgiのshebang部の書き換えを行うだけだが、非cgiはspeedygosh化
    しない方がいいので、個別に設定を用意する(仮)
 --- 別に無差別にspeedygosh化してもいいのでは？
+---- 常駐するサーバプロセス等でstderr制約があるので、分けるべき
 -- conf項目に、(shebang-filter #f)を追加。
    この項目が二引数を取る手続きなら、その返り値がshebang行になる。
    引数は元のshebang行と、ファイル名(chaton-entry等)。
