@@ -127,7 +127,7 @@
 
 (define (the-form nick remember-me)
   (html:form
-    :action "@@httpd-url@@@@url-path@@m"
+    :action +mobile-url+
     :method "post"
     :target "_self"
     :name "send"
@@ -225,19 +225,10 @@
                  (format "somebody(~a)" (cgi-get-metavariable "REMOTE_ADDR"))
                  nick-src))
          (remember-me (cgi-get-parameter "remember" params))
-         (max-age-epoch (* 10 365 24 60 60))
          )
     (define (is-dup-entry?)
       ;; TODO: あとで実装する
       #f)
-    (define (make-cookie-args max-age-epoch)
-      `(
-        :path "@@cookie-path@@"
-        :max-age ,max-age-epoch
-        :expires ,(if (zero? max-age-epoch)
-                    0
-                    (+ (sys-time) max-age-epoch))
-        ))
     (when (and
             (string-length text) ; textが空文字列でない時のみ、ログ追記を行う
             (not (is-dup-entry?))) ; 二重書き込み簡易チェック
@@ -246,9 +237,8 @@
     (let ((cookies (construct-cookie-string
                      ;; TODO: この段階のencode-jsだとnickが二重にencodeされるかもしれない、もしそうなら、自前でクッキーの構築をやらなくてはいけなくなる
                      `(("chaton-nickname" ,@(if remember-me
-                                              (cons (encode-js nick) (make-cookie-args max-age-epoch))
-                                              (cons "" (make-cookie-args 0))))
-                       ("chaton-mode" "mobile" ,@(make-cookie-args max-age-epoch)))
+                                              (cons (encode-js nick) (make-cookie-args))
+                                              (cons "" (make-cookie-args 0)))))
                      0))
           (next-url (if remember-me
                       +mobile-url+

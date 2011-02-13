@@ -57,6 +57,8 @@
 -- chaton-mobileの使用の有無
 - (chaton-mobile-rows 5)
 -- chaton-mobileでの最近の発言の最大表示数
+- (chaton-mobile-as-default #f)
+-- chaton-entryとchaton-mobileどちらをデフォルトとするか
 - (dont-use-badge #f)
 -- badge.htmlおよびchaton-badgeの使用の有無
 - (extra-menu-html-list '())
@@ -69,22 +71,6 @@
 
 * TODO
 ** やる
-- chaton-entryとchaton-mobileの統合
--- chaton-entryが親になる
---- chaton-entry内で、chaton-mobileをrequireする
--- chaton-entryのentry-mainを実行する前に、先に、paramsとcookieとconfを見て、
-   どちらを実行するかを決定する
---- entry-mainやmobile-main内にcgi-mainがある関係上、パラメータの取得は
-    cgi-parse-parameterを使う事
---- 「Chaton mode」と「Mobile mode」を行き来するスイッチへのディスパッチは、
-    この段階で行う必要がある(だからparamを見る必要がある)
---- これに伴い、chaton-mobileのpost時のchaton-modeクッキー発行と、
-    chaton.jsのchaton-modeクッキー発行は不要になる
--- リンクメニューの「Mobile mode」「Chaton mode」はそれぞれへのリンクではなく
-   cookie変更後リダイレクトとする
--- confに(chaton-mobile-as-default #f)の項目を追加
--- 統合の結果、chaton-mobileはhtdocs上に置く必要がなくなるので、
-   chaton-mobile.scmとして、chaton.scmと同じ場所に置く？
 - speedygosh向け設定追加
 -- 基本的には、各cgiのshebang部の書き換えを行うだけだが、非cgiはspeedygosh化
    しない方がいいので、個別に設定を用意する(仮)

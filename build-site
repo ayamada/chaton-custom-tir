@@ -46,6 +46,7 @@
       (sed "chaton-viewer" (build-path bindir comet-script) nconf)
       (sed "chaton-archiver" (build-path bindir archiver-script) nconf)
       (sed "chaton.scm"    (build-path datadir "chaton.scm") nconf)
+      (sed "chaton-mobile" (build-path datadir "chaton/mobile.scm") nconf)
       (sed "chaton-poster" (build-path docdir cgi-script) nconf)
       (sed "chaton-browser"(build-path docdir "a") nconf)
       (sed "chaton-badge"  (build-path docdir "b") nconf)
@@ -56,7 +57,6 @@
       (sed "badge.html"    (build-path docdir "badge.html") nconf)
       (sed "htaccess"      (build-path docdir ".htaccess") nconf)
       (sed "chaton.css"    (build-path docdir "chaton.css") nconf)
-      (sed "chaton-mobile" (build-path docdir "m") nconf)
       (cond
        [chaton-js-update?
         (remove-old-chaton-js docdir)
@@ -75,15 +75,18 @@
                                  "search.html"
                                  "s"))
             ;; passwd
-            (if (not (assoc-ref config 'htpasswd-path))
+            (when (not (assoc-ref config 'htpasswd-path))
               (build-path docdir "passwd"))
             ;; chaton-mobile
-            (if (not (assoc-ref config 'use-chaton-mobile))
+            ;(when (not (assoc-ref config 'use-chaton-mobile))
+            ;  (build-path docdir "m"))
+            ;; old chaton-mobile
+            (when (file-exists? (build-path docdir "m"))
               (build-path docdir "m"))
             ;; badge.html
-            (if (assoc-ref config 'dont-use-badge)
+            (when (assoc-ref config 'dont-use-badge)
               (build-path docdir "badge.html"))
-            (if (assoc-ref config 'dont-use-badge)
+            (when (assoc-ref config 'dont-use-badge)
               (build-path docdir "b"))
             )))
       )))
@@ -149,6 +152,7 @@
     use-internal-search
     use-chaton-mobile
     chaton-mobile-rows
+    chaton-mobile-as-default
     dont-use-badge
     extra-menu-html-list
     room-html
@@ -159,6 +163,7 @@
 (define (ensure-files-and-directories bindir docdir datadir)
   (for-each make-directory* (list bindir
                                   (build-path datadir "data")
+                                  (build-path datadir "chaton")
                                   (build-path datadir "logs")
                                   (build-path docdir "var")))
   (create-if-does-not-exist (build-path datadir "data/current.dat") "")

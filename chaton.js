@@ -10,7 +10,7 @@
 
 function post() {
   setNickCookie($F('post-remember'));
-  setModeCookie();
+  //setModeCookie();
   if ($F('post-nick') == '' || $F('post-text') == '') return;
   disablePost();
   new Ajax.Request("@@httpd-url@@@@url-path@@@@cgi-script@@",

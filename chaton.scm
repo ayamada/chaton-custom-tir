@@ -47,6 +47,7 @@
           get-timestamp-omit-interval
           charconv-cgi-param
           make-navigation-html
+          make-cookie-args
           
           with-output-to-file))
 (select-module chaton)
@@ -54,7 +55,8 @@
 ;;; Some common constants
 (define-constant +room-url+    "@@httpd-url@@@@url-path@@")
 (define-constant +archive-url+ (build-path +room-url+ "a"))
-(define-constant +mobile-url+ (build-path +room-url+ "m"))
+;(define-constant +mobile-url+ (build-path +room-url+ "m"))
+(define-constant +mobile-url+ +room-url+)
 
 (define-constant +datadir+ (or (sys-getenv "CHATON_DATADIR")
                                "@@server-data-dir@@data"))
@@ -334,11 +336,11 @@
           (html:a :href "a/today" "Read Archive")
           (html:a :href "@@httpd-url@@@@url-path@@var/index.rdf" "RSS")
           (cond
+            ((not @@use-chaton-mobile@@) #f)
             (mobile-mode?
-              (html:a :href "@@httpd-url@@@@url-path@@" "Chaton mode"))
-            (@@use-chaton-mobile@@
-              (html:a :href "@@httpd-url@@@@url-path@@m" "Mobile mode"))
-            (else #f))
+              (html:a :href "@@httpd-url@@@@url-path@@?c=m&mode=chaton" "Chaton mode"))
+            (else
+              (html:a :href "@@httpd-url@@@@url-path@@?c=m&mode=mobile" "Mobile mode")))
           (if @@use-internal-search@@
             (html:a :href "@@httpd-url@@@@url-path@@s" "Search")
             (html:a :href "@@httpd-url@@@@url-path@@search.html" "Search"))
@@ -347,6 +349,18 @@
             (html:a :href "@@httpd-url@@@@url-path@@badge.html" "Badge"))
           (quote
             @@extra-menu-html-list/escd@@))))))
+
+(define *max-age-epoch*
+  (* 10 365 24 60 60))
+
+(define (make-cookie-args :optional (max-age-epoch *max-age-epoch*))
+  `(
+    :path "@@cookie-path@@"
+    :max-age ,max-age-epoch
+    :expires ,(if (zero? max-age-epoch)
+                0
+                (+ (sys-time) max-age-epoch))
+    ))
 
 ;; This feature should be built-in!
 

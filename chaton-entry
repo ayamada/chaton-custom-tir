@@ -7,18 +7,57 @@
 (define-module chaton.entry
   (use www.cgi)
   (use rfc.http)
+  (use rfc.cookie)
   (use text.html-lite)
   (use text.tree)
   (use file.util)
   (use srfi-1)
   (use util.list)
   (use chaton)
-  (export entry-main))
+  (use chaton.mobile)
+  (export entry-main dispatch-pre-main))
 (select-module chaton.entry)
 
 (define-constant +chaton-url+ "http://practical-scheme.net/chaton/")
 (define-constant +viewer+  "@@httpd-url@@:@@comet-port@@/")
 (define-constant +credential+ "@@server-data-dir@@auth")
+
+(define (dispatch-pre-main args)
+  (if (not @@use-chaton-mobile@@)
+    (entry-main args)
+    (or
+      ;; check parameter "mode"
+      (and-let* ((_ (equal? "GET" (cgi-get-metavariable "REQUEST_METHOD")))
+                 (params (cgi-parse-parameters))
+                 ;; "/path/to/entry?c=m&mode=chaton"
+                 (_ (equal? "m" (cgi-get-parameter "c" params)))
+                 (mode (cgi-get-parameter "mode" params))
+                 (new-cookies (construct-cookie-string
+                                `(("chaton-mode"
+                                   ,(if (equal? mode "mobile")
+                                      "mobile"
+                                      "chaton")
+                                   ,@(make-cookie-args)))))
+                 )
+        (cgi-main
+          (lambda (_)
+            (cgi-header
+              :cookies new-cookies
+              :location +room-url+
+              :pragma "no-cache"
+              :cache-control "no-cache"))))
+      ;; check cookie "chaton-mode"
+      (and-let* ((cookies (cgi-parse-parameters :query-string ""
+                                                :merge-cookies #t))
+                 (chaton-mode (cgi-get-parameter "chaton-mode" cookies)))
+        (if (equal? "mobile" chaton-mode)
+          (mobile-main args)
+          (entry-main args)))
+      ;; fallback
+      (if @@chaton-mobile-as-default@@
+        (mobile-main args)
+        (entry-main args)))))
+
 
 (define (entry-main args)
   (set! (port-buffering (current-error-port)) :line)
@@ -98,7 +137,7 @@
 
 (select-module user)
 (import chaton.entry)
-(define main entry-main)
+(define main dispatch-pre-main)
 
 ;; Local variables:
 ;; mode: scheme
