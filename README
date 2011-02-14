@@ -67,6 +67,34 @@
 -- chaton-entryに埋め込むhtml
 -- room-description は、rss等にも入ってしまう「chat部屋自体の説明文」なので、
    html等を入れづらい為、別項目を用意した
+- (shebang-filter #f)
+-- speedygosh対応等、個別のファイル毎に#!行を書き換えたい場合に、
+   二引数の手続きを設定する。
+   引数は元のshebang行と、ファイル名("chaton-entry"等)が渡される。
+   返り値は書き換えた後のshebang行、もしくは#f(元の値が使われる)。
+
+
+* 元々のChatonに存在する設定項目
+説明は省略
+- (img-size-limit  400)
+- (embed-youtube-width  560)
+- (embed-youtube-height 345)
+- (gosh "/home/shiro/bin/gosh")
+- (httpd-url "http://practical-scheme.net")
+- (server-bin-dir "/home/shiro/bin/")
+- (prototype-url "http://practical-scheme.net/js/prototype.js")
+- (cookie-path "/chaton/")
+- (site-search-url "http://practical-scheme.net/chaton/")
+- (room-name "Gauche")
+- (room-description "...")
+- (comet-port 9997)
+- (url-path   "/chaton/gauche/")
+- (server-htdocs-dir "/home/shiro/practical-scheme.net/chaton/gauche/")
+- (server-data-dir   "/home/shiro/data/chaton/gauche/")
+- (icon-url "http://practical-scheme.net/images/chaton-room-gauche.gif")
+- (show-stack-trace-on-error #f)
+- (htpasswd-path "")
+- (loose-login #t)
 
 
 * TODO
@@ -75,16 +103,26 @@
 -- 基本的には、各cgiのshebang部の書き換えを行うだけだが、非cgiはspeedygosh化
    しない方がいいので、個別に設定を用意する(仮)
 --- 別に無差別にspeedygosh化してもいいのでは？
----- 常駐するサーバプロセス等でstderr制約があるので、分けるべき
+---- 常駐するサーバプロセス等でstderr制約が困るので、分けるべき
 -- conf項目に、(shebang-filter #f)を追加。
    この項目が二引数を取る手続きなら、その返り値がshebang行になる。
-   引数は元のshebang行と、ファイル名(chaton-entry等)。
+   返り値が#fの時は、元の値が使われる。
+   引数は元のshebang行と、ファイル名("chaton-entry"等)。
 - loose-loginが#fの時に、session expiredが出た後にリロードしても直らない問題を
   どうにかする
 -- 再現手順: chatonを開いたままブラウザを再起動する
 --- ブラウザ側は古いセッションを維持しているのに、サーバ側がexpireさせているのが原因？？？
 --- もしかしたら、原因が二通りあるかもしれない。一つは上の通りで、もう一つは、cometサーバが、何らかの原因で長時間接続しているクライアントのセッションのtimestampが更新されてない時がある？
+- 自分の発言でも、タイトル部分の未読数が増えるのを抑制する
+-- 自分が発言した際に、比較用タイムスタンプを増加させればok？
 ** あとまわし
+- githubに保存する際に、オリジナルと改変部分とでブランチ変更するの忘れてたので、このままではrebaseできない。なんとかすること
+-- このままでもrebaseできるなら不要。できる？
+--- オリジナルの方を、別ブランチ名で追加すればいいだけ？
+- 改造内容を、 ChangeLog にも反映
+-- 元々、個人的に使う為に改造してた為、追記しないままここまできてしまったが
+-- あとでかんがえる
+** やらない
 - confファイルの記法を変更するかどうか考える
 -- ファイルをloadする方針にし、設定の定義は以下のようにする方向で
 --- (define-chaton-setting dont-expand-url #f)
@@ -92,20 +130,15 @@
 --- (dont-expand-url #f)
 --- また、 (include "file.conf") も対応が必要
 -- 後方互換性が取れそうなので、実装する方向で
-- 自分の発言でも、タイトル部分の未読数が増えるのを抑制する
--- 自分が発言した際に、比較用タイムスタンプを増加させればok？
-- githubに保存する際に、オリジナルと改変部分とでブランチ変更するの忘れてたので、このままではrebaseできない。なんとかすること
--- このままでもrebaseできるなら不要。できる？
---- オリジナルの方を、別ブランチ名で追加すればいいだけ？
-- 改造内容を、 ChangeLog にも反映
--- 元々、個人的に使う為に改造してた為、追記しないままここまできてしまったが
--- あとでかんがえる
+-- 自分自身は現状の動作で満足してしまったので、やらない事に
+--- 誰か他の人が書いてくれたら取り込む
 - fastcgi向け設定追加
 -- .htaccessのハンドラ変更と、
    各cgiで(use www.fastcgi)とかwith-fastcgiで囲むとかが必要
 --- 本当にfcgiモジュールが入ってるか事前に(＝build-siteで)確認する必要がある
 -- ラッパー関数をchaton.scmに作って、それをcgi-mainの代わりに使うようにする
-** やらない
+-- 自分自身はspeedygosh対応だけで満足してしまったので、やらない事に
+--- 誰か他の人が書いてくれたら取り込む
 - client/chaton/client.scm の chaton-permalink の元になる日時の扱いをどうするか
 -- client/chaton/client.scm は要するに、
    外部のtwitterブリッジ等から利用される手続きで、
@@ -153,6 +186,8 @@
   cometサーバ(常駐する、「chaton-viewer-部屋名」のスクリプト)も
   再起動させないといけない。そうしないとcometサーバが
   古いjsファイルのurlを返してしまい、jsエラーになってしまう。
+  なので、build-siteおよびmake install時の実行時のメッセージはよく見て、
+  chaton.jsの更新があったかどうか確認する事！
 
 
 
