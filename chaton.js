@@ -17,9 +17,9 @@ function post() {
     {
       parameters : {
         nick: $F('post-nick'), 
-	text: $F('post-text')
+        text: $F('post-text')
       },
-      onSuccess : function (t) { enablePost(true); },
+      onSuccess : function (t) { viewedMessageNum++; enablePost(true); },
       onFailure : function (t) { enablePost(false); },
       onException : function (r, e) { enablePost(false); }
     });
