@@ -44,7 +44,7 @@ function enablePost(clearp) {
   $('post-form').disabled = false;
   if (clearp) {
     $('post-text').clear();
-    currentMessageNum = viewedMessageNum = -1;
+    messageMonitorStop();
   }
   $('post-submit').focus();
   $('post-text').focus();
@@ -82,30 +82,33 @@ var messageMonitorRunning = false;
 var messageMonitorContinue = false;
 var currentMessageNum = -1;
 var viewedMessageNum = -1;
+var idleCount = -1;
 
 function setTitle() {
+  var debug = '';
+  //debug = currentMessageNum + ':' + viewedMessageNum + ':' + messageMonitorRunning + ':' + messageMonitorContinue + ':';
   if (messageMonitorContinue) {
     var num = currentMessageNum - viewedMessageNum;
     if (num > 0) {
-      window.document.title = '[' + num + '] Chaton @@room-name@@';
+      window.document.title = debug + '[' + num + '] Chaton @@room-name@@';
       return;
     }
   }
-  window.document.title = 'Chaton @@room-name@@';
+  window.document.title = debug + 'Chaton @@room-name@@';
 }
 
 function messageMonitorRun() {
   messageMonitorContinue = true;
   if (!messageMonitorRunning) {
     messageMonitorRunning = true;
-    currentMessageNum = viewedMessageNum = -1;
+    currentMessageNum = viewedMessageNum = idleCount = -1;
     fetchMessageCount();
   }
 }
 
 function messageMonitorStop() {
   messageMonitorContinue = false;
-  currentMessageNum = viewedMessageNum = -1;
+  currentMessageNum = viewedMessageNum = idleCount = -1;
   setTitle();
 }
 
@@ -175,6 +178,9 @@ function fetchContent(cid) {
               fetchRetry(cid);
           }
       });
+    if (!messageMonitorRunning && 10 < idleCount++) {
+      messageMonitorRun();
+    }
     startWatchDog(cid);
 }
 
