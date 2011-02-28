@@ -32,6 +32,8 @@
 - w3mや携帯端末等の、comet制御ができない/不向きなブラウザの為の簡易クライアント
 - 細かい挙動の修正
 -- 自分の発言でタイトルの未読数が増えてしまうのを抑制、未読数表示モードを可視化
+-- loose-loginが#fの時に、二回リロードするとSession expiredが出て、それ以降
+   何回リロードしても、ページ移動しない限りSession expiredが直らない問題を修正
 - 一部の見た目にのみ関わる調整
 -- rssに、部屋のアイコンを表示
 -- youtubeサムネイルをiframe版に
@@ -45,6 +47,9 @@
         設定値にScheme式を許す仕様に変更した為、
         これらは文字列ではなく、真偽値や数値そのもので指定してください。
         (文字列のままだと型が一致せずエラーや判定ミスが起こる可能性があります)
+        尚、オリジナルのChatonの設定項目に限れば、文字列指定のままでも
+        正しく動作します。
+        要は、ここにリストしている追加項目がそうではない、という事です。
 - (dont-expand-url #f)
 -- 画像、youtube、ニコ動のurlを展開するかどうか
 - (extra-css "")
@@ -79,7 +84,8 @@
 
 
 * 元々のChatonに存在する設定項目
-説明は省略
+説明は省略。これらの設定項目は文字列のままでも正常に扱えるし、
+数値や真偽値を""無しで指定しても正常に扱えます。
 - (img-size-limit  400)
 - (embed-youtube-width  560)
 - (embed-youtube-height 345)
@@ -104,37 +110,6 @@
 * TODO
 ** やる
 - カスタムurlフィルタを追加可能に
-- loose-loginが#fの時に、Session expiredが出た後にリロードしても直らない問題を
-  どうにかする
--- もう一度、リロード時の挙動を調べた。以下のような遷移が起こっている。
---- ブラウザが、chaton-entryにはじめてアクセスする
---- chaton-entryが、内部でhttp-getを使って、cometサーバの /getcid にアクセスし、cometサーバは新しいcidを生成し、その値をchaton-entryに返す
----- このcidを、xxxxxxxxと呼ぶ事にする
---- chaton-entryは、そのcidを指定したiframeを含むhtmlをブラウザに遅り返す
---- ブラウザのiframe内のJavaScriptは、cometサーバとcomet接続を行い、ログをリアルタイム表示を行う
---- ブラウザから強制リロードを行う
---- またchaton-entryが /getcid にアクセスし、新しいcidを生成し、それを含んだhtmlがブラウザに返される
----- この新しいcidを、yyyyyyyyと呼ぶ事にする
---- ブラウザのiframe内のJavaScriptは、cometサーバとcomet接続を行い、ログをリアルタイム表示を行うが、何故か、 /getcid で得られた新しいcidであるyyyyyyyyではなく、古いxxxxxxxxにてアクセスが行われる
----- chaton-entryが返したhtmlには、iframeのリンク先はcometサーバの /?c=yyyyyyyy と間違いなく書いてあるのに、cometサーバのログには、 /?c=xxxxxxxx の方にのみアクセスがあった事が記録されている。ブラウザの問題？
----- リロード前のJavaScriptのsetTimeoutで設定されたコールバック関数が呼ばれた？
----- cometサーバのログには、「obsoleting dup cid: xxxxxxxx; reallocating zzzzzzzz」と出ている
------ zzzzzzzzは、xxxxxxxxともyyyyyyyyとも違う、また新しいcid値
---- ？？？
----- cometサーバのログには、「abandoned for dup request」と出ている
------ これはyyyyyyyyのcidが破棄されたという事を意味する？？？
---- ブラウザは、cometサーバから新しいcidであるzzzzzzzzを受け取り、それでcometサーバと通信を行い、ログのリアルタイム表示を行い続ける。この段階では問題はない
---- ？？？
----- cometサーバのログには、「client yyyyyyyy gone」と出ている
---- ここでまたブラウザから強制リロードを行う
---- またchaton-entryが /getcid にアクセスし、新しいcidを生成し、それを含んだhtmlがブラウザに返される
----- この新しいcidを、aaaaaaaaと呼ぶ事にする
---- ブラウザのiframe内のJavaScriptは、cometサーバとcomet接続を行おうとするが、その際に、またxxxxxxxxのcidでアクセスが行われる
----- このxxxxxxxxは既に破棄されているので、画面は「Session expired」になる
---- 以降は、何度リロードしても同じ。
-
-
-
 ** あとまわし
 - githubに保存する際に、オリジナルと改変部分とでブランチ変更するの忘れてたので、このままではrebaseできない。なんとかすること
 -- このままでもrebaseできるなら不要。できる？
@@ -196,6 +171,14 @@
    (少なくともwindowsのfirefoxでは)マウスカーソルイベントが何か起こった時
    であり、結局マウスカーソルを動かさないとtitleは変更されないので、
    一旦は実装したものの、結局元に戻す事に
+- loose-loginが#fの時に、二回リロードするとSession expiredが出る問題を
+  修正した際に、副作用で、リロード時に二回cometサーバに接続しにいってしまう
+  問題が出たので、直したい
+-- リロード直後はiframe srcがリロード前の値を引き継いでいて、その値で
+   cometサーバに接続し、その後にbodyのonLoadでiframe srcが上書きされて、
+   新しい値でcometサーバに接続しにいっている
+-- iframeのキャッシュ対策を行ったまま、これを解決するのは
+   ちょっと無理そうなので、放置する
 
 
 * 改造方針
@@ -239,5 +222,14 @@
 - 未読数がおかしくなる件について
 -- Ajax.Requestでgetする際に、ブラウザがキャッシュしてしまうのが原因らしい。
    キャッシュしないように、url末尾に変化するダミー値をつけて回避した。
+- loose-loginが#fの時に、二回リロードするとSession expiredが出る件について
+-- どのブラウザもiframeを過剰にキャッシュするのが原因。
+   強制リロードしてページのソースが更新されて、iframe srcの値が変更されても、
+   iframeの実表示先はリロード前の値が引き継がれる。
+   これに対応するには、JavaScriptでiframe srcの値を書き換えればいい、と、
+   このページに書いてあった。
+   http://www.freshsupercool.com/2008/07/10/firefox-caching-iframe-data/
+   これ以外の対策(ヘッダにいろいろつける、不可視の空iframeを埋め込む等)は
+   効果がなかった。
 
 

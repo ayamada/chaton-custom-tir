@@ -140,7 +140,8 @@ function fetchMessageCountCB(t) {
 }
 
 // Initialization -------------------------------------
-function initMainBody() {
+function initMainBody(iframesrc) {
+  $('view-frame').src = iframesrc; // for inhibit to cache to iframe
   $('post-text').observe('keypress', textKey);
   $('the-body').onmouseover = function () { messageMonitorStop(); }
   $('the-body').onmouseout  = function () { messageMonitorRun(); }
