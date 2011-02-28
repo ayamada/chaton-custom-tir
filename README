@@ -106,15 +106,35 @@
 - カスタムurlフィルタを追加可能に
 - loose-loginが#fの時に、Session expiredが出た後にリロードしても直らない問題を
   どうにかする
--- 再現手順: chatonを開き、何度もリロードしてるとそのうち起こる。一旦起こると、あとは何度リロードしてもSession expiredのまま
---- リロードではなく、一旦Read Archive等に移動してからリンクを辿って戻ってくると、ちゃんと復帰する
--- 調べた結果、最初にSession expiredが出た時に、cometのログに「abandoned for dup request」と出ているのが分かった。これによってcidが破棄され、それ以降、Session expiredのままになるようだ。
--- そもそも、リロード前と後で、同じcidでcometサーバに問い合わせが行っているのが
-   おかしい？
---- cidの取得は、chaton-entryより、 /getcid?cred=,cred へのアクセスで取得
-    している。そして、cometサーバは毎回違うcidを返すコードになっているように
-    見える。なので、おかしいとしたら、JavaScript内で /getcid?cred=,cred の
-    結果がキャッシュでもされてるのでは？としか思えないのだが……
+-- もう一度、リロード時の挙動を調べた。以下のような遷移が起こっている。
+--- ブラウザが、chaton-entryにはじめてアクセスする
+--- chaton-entryが、内部でhttp-getを使って、cometサーバの /getcid にアクセスし、cometサーバは新しいcidを生成し、その値をchaton-entryに返す
+---- このcidを、xxxxxxxxと呼ぶ事にする
+--- chaton-entryは、そのcidを指定したiframeを含むhtmlをブラウザに遅り返す
+--- ブラウザのiframe内のJavaScriptは、cometサーバとcomet接続を行い、ログをリアルタイム表示を行う
+--- ブラウザから強制リロードを行う
+--- またchaton-entryが /getcid にアクセスし、新しいcidを生成し、それを含んだhtmlがブラウザに返される
+---- この新しいcidを、yyyyyyyyと呼ぶ事にする
+--- ブラウザのiframe内のJavaScriptは、cometサーバとcomet接続を行い、ログをリアルタイム表示を行うが、何故か、 /getcid で得られた新しいcidであるyyyyyyyyではなく、古いxxxxxxxxにてアクセスが行われる
+---- chaton-entryが返したhtmlには、iframeのリンク先はcometサーバの /?c=yyyyyyyy と間違いなく書いてあるのに、cometサーバのログには、 /?c=xxxxxxxx の方にのみアクセスがあった事が記録されている。ブラウザの問題？
+---- リロード前のJavaScriptのsetTimeoutで設定されたコールバック関数が呼ばれた？
+---- cometサーバのログには、「obsoleting dup cid: xxxxxxxx; reallocating zzzzzzzz」と出ている
+----- zzzzzzzzは、xxxxxxxxともyyyyyyyyとも違う、また新しいcid値
+--- ？？？
+---- cometサーバのログには、「abandoned for dup request」と出ている
+----- これはyyyyyyyyのcidが破棄されたという事を意味する？？？
+--- ブラウザは、cometサーバから新しいcidであるzzzzzzzzを受け取り、それでcometサーバと通信を行い、ログのリアルタイム表示を行い続ける。この段階では問題はない
+--- ？？？
+---- cometサーバのログには、「client yyyyyyyy gone」と出ている
+--- ここでまたブラウザから強制リロードを行う
+--- またchaton-entryが /getcid にアクセスし、新しいcidを生成し、それを含んだhtmlがブラウザに返される
+---- この新しいcidを、aaaaaaaaと呼ぶ事にする
+--- ブラウザのiframe内のJavaScriptは、cometサーバとcomet接続を行おうとするが、その際に、またxxxxxxxxのcidでアクセスが行われる
+---- このxxxxxxxxは既に破棄されているので、画面は「Session expired」になる
+--- 以降は、何度リロードしても同じ。
+
+
+
 ** あとまわし
 - githubに保存する際に、オリジナルと改変部分とでブランチ変更するの忘れてたので、このままではrebaseできない。なんとかすること
 -- このままでもrebaseできるなら不要。できる？
@@ -215,5 +235,9 @@
 
 
 
+* なおしたメモ
+- 未読数がおかしくなる件について
+-- Ajax.Requestでgetする際に、ブラウザがキャッシュしてしまうのが原因らしい。
+   キャッシュしないように、url末尾に変化するダミー値をつけて回避した。
 
 
