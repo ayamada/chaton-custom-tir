@@ -82,18 +82,26 @@
 (define (update-rss)
   (with-output-to-file +index.rdf+
     (lambda ()
-      (write-tree
-       `("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n"
-         "<rss version=\"2.0\" xmlns:content=\"http://purl.org/rss/1.0/modules/content/\">\n"
-         "<channel>\n"
-         "<title>" ,(html-escape-string "@@room-name@@") "</title>\n"
-         "<link>" ,(html-escape-string "@@httpd-url@@@@url-path@@") "</link>\n"
-         "<description>" ,(html-escape-string "@@room-description@@") "</description>\n"
-         ,(chaton-render-from-file +current-file+ 0 #f
-                                   :renderer chaton-render-rss-1
-                                   :newest-first #t)
-         "</channel>\n"
-         "</rss>\n")))
+      (let ((title `("<title>" ,(html-escape-string "@@room-name@@") "</title>\n"))
+            (link `("<link>" ,(html-escape-string "@@httpd-url@@@@url-path@@") "</link>\n"))
+            )
+        (write-tree
+         `("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n"
+           "<rss version=\"2.0\" xmlns:content=\"http://purl.org/rss/1.0/modules/content/\">\n"
+           "<channel>\n"
+           ,@title
+           ,@link
+           "<description>" ,(html-escape-string "@@room-description@@") "</description>\n"
+           ,(chaton-render-from-file +current-file+ 0 #f
+                                     :renderer chaton-render-rss-1
+                                     :newest-first #t)
+           "<image>\n"
+           "<url>" ,(html-escape-string "@@icon-url@@") "</url>\n"
+           ,@title
+           ,@link
+           "</image>\n"
+           "</channel>\n"
+           "</rss>\n"))))
     :atomic #t))
 
 ;;;===================================================================
