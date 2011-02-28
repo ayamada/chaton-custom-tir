@@ -45,6 +45,7 @@ function enablePost(clearp) {
   if (clearp) {
     $('post-text').clear();
     currentMessageNum = viewedMessageNum = -1;
+    setTitle();
   }
   $('post-submit').focus();
   $('post-text').focus();
@@ -114,7 +115,7 @@ function fetchMessageCount() {
     messageMonitorRunning = false;
     return;
   }
-  new Ajax.Request("@@httpd-url@@@@url-path@@var/seq",
+  new Ajax.Request("@@httpd-url@@@@url-path@@var/seq?" + (new Date).getTime(),
     {
       method: 'get',
       evalJSON: false,
