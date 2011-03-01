@@ -160,9 +160,7 @@
                     (cut cons <> #f)
                     *config-fallback-keys*))))
 (define *config-fallback-keys*
-  '(show-stack-trace-on-error
-    loose-login
-    dont-expand-url
+  '(dont-expand-url
     use-localtime
     timestamp-omit-interval
     dont-show-connect-num
