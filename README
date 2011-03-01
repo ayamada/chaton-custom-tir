@@ -109,7 +109,35 @@
 
 * TODO
 ** やる
+- 80番listen対応
+-- どうやって実現するかはあとで考える
+--- とりあえず、tcpserverに何かにproxyさせる方向で考える
+---- 実proxyはgaucheで書き、speedygoshで動かす
+-- conf項目追加(あとでいい)
+--- どのipにbindするかの指定
+--- ip等の読み替え指定(forwardのみでいいなら不要かも)
 - カスタムurlフィルタを追加可能に
+-- conf項目名を決める事
+--- (url-filters #f)
+    #fもしくはリストを指定する。
+    #fが指定された場合は、元々のChatonのurlフィルタ互換動作する定義がなされる。
+    リストの各要素は、以下のようなcons cellとする。
+    '(優先度数値 . (regexp 一引数の手続き))
+    優先度数値の高い順に、以下の操作が行われる。
+    ログ中にurlが出現するとregexpにかけられ、もしマッチしたなら
+    マッチオブジェクトが一引数の手続きに渡される。
+    この手続きは、html treeもしくは#fを返す事。
+    もし#fが返された場合は、
+    この設定の為に、標準のurlフィルタが以下の束縛名で提供される。
+    - regexp+render-url:image
+    - regexp+render-url:youtube
+    - regexp+render-url:nicovideo
+    - regexp+render-url:default
+    dont-expand-urlやimg-size-limit等は、この標準のurlフィルタ内にのみ
+    影響を及ぼす。
+--- 問題点:
+---- build-siteの時点でlambda式を手続きに変換してしまうと、
+     それをchaton.scm等に埋め込めない。どうする？
 ** あとまわし
 - githubに保存する際に、オリジナルと改変部分とでブランチ変更するの忘れてたので、このままではrebaseできない。なんとかすること
 -- このままでもrebaseできるなら不要。できる？
