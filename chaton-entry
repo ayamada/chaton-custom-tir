@@ -19,7 +19,7 @@
 (select-module chaton.entry)
 
 (define-constant +chaton-url+ "http://practical-scheme.net/chaton/")
-(define-constant +viewer+  "@@httpd-url@@:@@comet-port@@/")
+(define-constant +viewer+  "@@comet-url-prefix@@/")
 (define-constant +credential+ "@@server-data-dir@@auth")
 
 (define (dispatch-pre-main args)
@@ -96,7 +96,7 @@
     (html:script :src "@@prototype-url@@" :type "text/javascript")
     (html:script :src "@@httpd-url@@@@url-path@@@@chaton-js@@"
                  :type "text/javascript"))
-   (html:body :id "the-body" :onload #`"initMainBody('@@httpd-url@@:@@comet-port@@/?c=,|cid|');"
+   (html:body :id "the-body" :onload #`"initMainBody('@@comet-url-prefix@@/?c=,|cid|');"
     ;; Right pane -------------
     (html:div :id "right-pane"
       ;; Title ------------------

@@ -10,6 +10,7 @@
 -- https://github.com/ayamada/chaton-custom-tir
 
 
+
 * 主な変更内容
 - 設定可能項目の追加(詳細は後述)
 - conf内でScheme式(string-appendとか)が書けるようになった(evalしているだけ)
@@ -39,6 +40,7 @@
 -- youtubeサムネイルをiframe版に
 -- メニュー項目のレイアウト変更
 - その他微細な変更
+
 
 
 * 追加された設定項目と、そのデフォルト値
@@ -81,6 +83,10 @@
    二引数の手続きを設定する。
    引数は元のshebang行と、ファイル名("chaton-entry"等)が渡される。
    返り値は書き換えた後のshebang行、もしくは#f(元の値が使われる)。
+- (relay-url-prefix #f)
+-- cometサーバをproxy/delegateする場合に、そのurlのprefixを指定する。
+   httpd-url同様、末尾には「/」はつけない方がよい。
+
 
 
 * 元々のChatonに存在する設定項目
@@ -107,15 +113,11 @@
 - (loose-login #t)
 
 
+
 * TODO
 ** やる
-- 80番listen対応
--- どうやって実現するかはあとで考える
---- とりあえず、tcpserverに何かにproxyさせる方向で考える
----- 実proxyはgaucheで書き、speedygoshで動かす
--- conf項目追加(あとでいい)
---- どのipにbindするかの指定
---- ip等の読み替え指定(forwardのみでいいなら不要かも)
+- make checkが全然通らなくなってるので、通るように直す
+-- chaton-entryがchaton-mobileをuseするようになったので、そこがちょっと問題
 - カスタムurlフィルタを追加可能に
 -- conf項目名を決める事
 --- (url-filters #f)
@@ -207,6 +209,10 @@
    新しい値でcometサーバに接続しにいっている
 -- iframeのキャッシュ対策を行ったまま、これを解決するのは
    ちょっと無理そうなので、放置する
+- tcpcgiを使って、cometサーバとchaton-entry類を一つのhttpdにまとめる
+-- 最初はやろうと思っていたが、自分はrelay-url-prefixだけで
+   満足してしまったので、放置する事に
+
 
 
 * 改造方針
@@ -217,24 +223,13 @@
 -- という方針にする筈だったが、結局後方互換性バッチリにしてしまった
 
 
+
 * その他のメモ
-- 本体のバージョンが上がった際には、git rebaseでバージョンアップできるかも
-  (できないかも)
+- conf設定httpd-urlには、サーバ名末尾に「/」をつけてはいけない
+  (port番号がこの後に入るので、つけるとおかしくなる)
 - Chatonは、内部encodingがutf-8のGaucheでないと動きません。
   (少なくとも、最初に元にしたrevision 154では)
   いい機会なので、環境のutf-8化をしてしまいましょう。
-- Chatonのcomet serverを、特定ipだけlistenさせる事はちょっと改造すればできる。
-  しかし、80番をlistenするようにするにはroot権限が必要になる為、かなり困難。
-  (セキュリティを諦めてcomet serverのプロセスをrootで走らせるか、
-   apache等の他のhttpdのように、80番をlistenしてから権限を落としたり等の
-   工夫が必要になる)
-  もしそれをやる場合は、djbのtcpserverに中継させる方針がいいと思う。
-  (この方針であれば、もし必要なら、tcpserverのssl対応パッチを使って
-   https対応にすらできるかもしれない(できないかもしれない)。
-   tcpserverでsslをする場合は結構重くなるので問題かもしれないが)
--- これをやる場合、chaton-entry等も、comet serverが出力してしまうのが良い。
-   その場合は、tcpcgiのコードを流用できる。
---- ただ、tcpcgiはbasic認証が未実装だった気がするので、そこは頑張る必要が
 - build-site実行やmake install実行で、chaton.jsの更新があった時は、
   cometサーバ(常駐する、「chaton-viewer-部屋名」のスクリプト)も
   再起動させないといけない。そうしないとcometサーバが
@@ -243,6 +238,18 @@
   chaton.jsの更新があったかどうか確認する事！
 - 部屋を新設したら、本来はcronで実行する chaton-archiver-* を、
   手動で一回実行しておきましょう
+- delegatedを使って、cometサーバを80番で利用する
+-- delegatedを用意する
+--- http://www.delegate.org/delegate/
+-- 80番の空いている別ipを用意し、マシンに割り当てる
+--- 以下の例では、このipは「111.222.33.44」という事にする
+-- confに (relay-url-prefix "http://111.222.33.44") を設定し、反映
+   ( ./build-site もしくは make install )
+-- delegatedを起動する。以下のような起動コマンドになる
+--- /usr/local/bin/delegated -P111.222.33.44:80 DGROOT=/var/lib/delegate \
+    RESOLV="" PERMIT="tcprelay:127.0.0.1:*" SERVER=tcprelay://127.0.0.1:9997
+---- SERVERの末尾の9997は、cometサーバのportの数値を指定する事
+---- 80番をlistenする為に、rootでの実行が必要(実行後はnobody権限になる)
 
 
 

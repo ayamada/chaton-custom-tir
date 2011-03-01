@@ -32,12 +32,19 @@
                                       (or
                                         (assoc-ref config 'extra-menu-html-list)
                                         '()))]
+         [comet-url-prefix (or
+                             (assoc-ref config 'relay-url-prefix)
+                             (string-append
+                               (assoc-ref config 'httpd-url)
+                               ":"
+                               (x->string (assoc-ref config 'comet-port))))]
          [xconfig `((comet-script . ,comet-script) (cgi-script . ,cgi-script)
                     (room-name/escd . ,room-name/escd)
                     (room-description/escd . ,room-description/escd)
                     (room-html/escd . ,room-html/escd)
                     (extra-menu-html-list/escd . ,extra-menu-html-list/escd)
                     (htaccess-auth . ,(htaccess-auth config))
+                    (comet-url-prefix . ,comet-url-prefix)
                     ,@config)])
     (ensure-files-and-directories bindir docdir datadir)
     (receive (nconf chaton-js-update?)
@@ -168,6 +175,7 @@
     room-html
     extra-css
     shebang-filter
+    relay-url-prefix
     ))
 
 ;; Ensure directories and files that should exist
