@@ -118,6 +118,13 @@
 ** やる
 - make checkが全然通らなくなってるので、通るように直す
 -- chaton-entryがchaton-mobileをuseするようになったので、そこがちょっと問題
+- chaton-browserに、pukiwiki等でよくある、refererによる検索語の色付け機能を追加
+-- 無効にもできるように、conf設定を追加する事
+--- 項目名は (dont-color-searchquery-from-referer #f)
+-- とりあえず、google(search.html)とchaton-searchのクエリにだけ対応してればok
+- 「やらない」の項目に移動した、window.document.titleの反映がされない件、
+  window.document.title自体が悪いんじゃなく、そこへ行く為の条件分岐か何かが
+  悪い可能性が高いので、もうちょっと調べる
 - カスタムurlフィルタを追加可能に
 -- conf項目名を決める事
 --- (url-filters #f)
@@ -140,6 +147,12 @@
 --- 問題点:
 ---- build-siteの時点でlambda式を手続きに変換してしまうと、
      それをchaton.scm等に埋め込めない。どうする？
+----- しかし、quoteした場合は、confの環境が持ち込めない
+      (useしたモジュール情報やdefineした内容が持ち込めない)
+---- 考えた結果、更にconf項目を追加し、以下のような実装とする
+----- (embed-code S式) で指定したS式は、chaton.scm内に埋め込まれる。
+      ここでurlフィルタを定義させる。必要ならこの中でモジュールもuseさせる。
+      confでdefineした値を埋め込みたい時は、quasiquote/unquoteで埋め込む。
 ** あとまわし
 - githubに保存する際に、オリジナルと改変部分とでブランチ変更するの忘れてたので、このままではrebaseできない。なんとかすること
 -- このままでもrebaseできるなら不要。できる？
