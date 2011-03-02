@@ -256,11 +256,15 @@
 --- http://www.delegate.org/delegate/
 -- 80番の空いている別ipを用意し、マシンに割り当てる
 --- 以下の例では、このipは「111.222.33.44」という事にする
+--- 80番が空いている別ipを割り当てられない場合、443番を使っていないなら、
+    そっちでも目的は達成できるかも(できないかも)
 -- confに (relay-url-prefix "http://111.222.33.44") を設定し、反映
    ( ./build-site もしくは make install )
 -- delegatedを起動する。以下のような起動コマンドになる
 --- /usr/local/bin/delegated -P111.222.33.44:80 DGROOT=/var/lib/delegate \
     RESOLV="" PERMIT="tcprelay:127.0.0.1:*" SERVER=tcprelay://127.0.0.1:9997
+---- DGROOTは、予め空のディレクトリをどこかに用意して、そこを指定すればok
+     (キャッシュファイルやログファイルがこの中に入れられる)
 ---- SERVERの末尾の9997は、cometサーバのportの数値を指定する事
 ---- 80番をlistenする為に、rootでの実行が必要(実行後はnobody権限になる)
 
