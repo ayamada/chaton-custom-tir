@@ -136,6 +136,12 @@
 ;; with room-specific parameter).
 (define (load-config file)
   (let1 m (make-module #f)
+    (define (conv-val var val)
+      (cond
+        ((equal? "#f" val) #f) ; "#f" => #f, it always, unite x->boolean
+        ((find (cute equal? var <>) *config-treat-as-integer-keys*)
+         (x->integer val)) ; "1" => 1
+        (else val))) ; "1" => "1"
     (define (do-load file seed)
       (with-input-from-file file
         (lambda ()
@@ -149,7 +155,9 @@
                          [('use module) (eval `(use ,module) m) seed]
                          [('define . left) (eval `(define ,@left) m) seed]
                          [('begin . left) (eval `(begin ,@left) m) seed]
-                         [(var val) (acons var (eval val m) seed)]))
+                         [(var val)
+                          (acons var (conv-val var (eval val m))
+                                 seed)]))
                      seed
                      read))))
     ;; added new entries for *.conf, those are may not in *.conf
@@ -174,6 +182,10 @@
     extra-css
     shebang-filter
     relay-url-prefix
+    ))
+(define *config-treat-as-integer-keys*
+  '(timestamp-omit-interval
+    chaton-mobile-rows
     ))
 
 ;; Ensure directories and files that should exist
