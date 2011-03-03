@@ -112,8 +112,6 @@
 
 * TODO
 ** やる
-- make checkが全然通らなくなってるので、通るように直す
--- chaton-entryがchaton-mobileをuseするようになったので、そこがちょっと問題
 - chaton-browserに、pukiwiki等でよくある、refererによる検索語の色付け機能を追加
 -- 無効にもできるように、conf設定を追加する事
 --- 項目名は (dont-color-searchquery-from-referer #f)
