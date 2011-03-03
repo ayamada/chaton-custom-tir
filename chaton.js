@@ -120,7 +120,7 @@ function fetchMessageCount() {
       method: 'get',
       evalJSON: false,
       onSuccess: fetchMessageCountCB,
-      onFailure: function (r,e) { messageMonitorStop(); }
+      onFailure: function (r,e) { setTimeout(fetchMessageCount, 150000); }
     });
 }
 
