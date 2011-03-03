@@ -79,6 +79,8 @@
    二引数の手続きを設定する。
    引数は元のshebang行と、ファイル名("chaton-entry"等)が渡される。
    返り値は書き換えた後のshebang行、もしくは#f(元の値が使われる)。
+   これのみ、write/read invarianceが保たれなくてよい。
+   (build-site内でのみしか使われない為)
 - (relay-url-prefix #f)
 -- cometサーバをproxy/delegateする場合に、そのurlのprefixを指定する。
    httpd-url同様、末尾には「/」はつけない方がよい。
