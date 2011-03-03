@@ -168,6 +168,8 @@
                     (cut cons <> #f)
                     *config-fallback-keys*))))
 (define *config-fallback-keys*
+  ;; NB: don't include to original chaton config keys
+  ;;     ( because treat as #t that not substituted @@hoge@@ by case )
   '(dont-expand-url
     use-localtime
     timestamp-omit-interval
