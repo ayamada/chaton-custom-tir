@@ -10,6 +10,7 @@
   (use file.util)
   (use chaton)
   (use srfi-19)
+  (use gauche.parameter)
   (export run-browser))
 (select-module chaton.browser)
 
@@ -63,12 +64,13 @@
 (define (emit-archfile y m d)
   (let* ((archfile (dpath y m d))
          (renderer (if @@dont-color-searchquery-from-referer@@
-                     chaton-render-html-1
-                     (make-chaton-render-html-1/colorquery)))
+                     identity
+                     (make-text-renderer/color-searchquery
+                       (cgi-get-metavariable "HTTP_REFERER"))))
          (content (and-let* ((_ (file-exists? archfile))
                              (idx (get-archfile-idx archfile y m d)))
-                    (chaton-render-from-file archfile idx #f
-                                             :renderer renderer)))
+                    (parameterize ((chaton-text-renderer renderer))
+                      (chaton-render-from-file archfile idx #f))))
          )
     (make-page y m d content (file-is-symlink? archfile))))
 

@@ -15,7 +15,7 @@
   (export search-main))
 (select-module chaton.search)
 
-(define *number-of-searchbox* 3)
+(define *number-of-searchbox* 5)
 (define *max-rows-of-result* 100)
 
 (define (search-main args)
@@ -227,16 +227,12 @@
     ((null? results) *msg:not-found*)
     (else
       (let* ((regexps (queries->regexps queries))
-             (re-true (string->regexp
-                        (tree->string
-                          (list
-                            "("
-                            (string-join
-                              (map regexp->string regexps)
-                              ")|(")
-                            ")"))))
              (over-rows? (< *max-rows-of-result* (length results)))
              (results-formed (reverse (if over-rows? (cdr results) results)))
+             (url (string-append
+                    "@@httpd-url@@@@url-path@@s?"
+                    (cgi-get-metavariable "QUERY_STRING")))
+             (renderer/cs (make-text-renderer/color-searchquery url))
              )
         (list
           (if over-rows?  (html:p (html:strong *msg:over-max-rows*)) '())
@@ -249,8 +245,7 @@
                     (html:a ;:class "permalink-anchor"
                             :href (make-permalink
                                     sec (make-anchor-string sec usec))
-                            ;; TODO: re-trueを使って、色付け等をしたい
-                            (html-escape-string str)))
+                            (renderer/cs (html-escape-string str))))
                   (html:li
                     (html:div
                       :class "entry-header"

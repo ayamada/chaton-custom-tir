@@ -12,6 +12,7 @@
   (use util.list)
   (use www.cgi)
   (use rfc.uri)
+  (use gauche.parameter)
   (use gauche.charconv)
   (use gauche.fcntl)
   (use gauche.sequence)
@@ -19,7 +20,8 @@
   (export chaton-render chaton-read-entries
           chaton-render-from-file
           chaton-render-html-1 chaton-render-rss-1
-          make-chaton-render-html-1/colorquery
+          chaton-text-renderer
+          make-text-renderer/color-searchquery
           chaton-with-shared-locking chaton-with-exclusive-locking
 
           chaton-alist->stree
@@ -79,6 +81,11 @@
 (define-constant +show-stack-trace+
   (read-from-string "@@show-stack-trace-on-error@@"))
 
+;; this is html-escaped text renderer for customized output.
+;; this is called by safe-text, render-url and other.
+(define chaton-text-renderer
+  (make-parameter identity))
+
 ;;;
 ;;;  Entries
 ;;;
@@ -135,7 +142,131 @@
 (define (state-ip last-state)      (cadr last-state))
 (define (state-timestamp last-state) (caddr last-state))
 
-(define (make-chaton-render-html-1/colorquery)
+(define (chaton-render-html-1 entry last-state)
+  (receive (nick sec usec text ip) (decompose-entry entry)
+    (let* ([anchor-string (make-anchor-string sec usec)]
+           [permalink (make-permalink sec anchor-string)])
+      (values `(,(if (and (equal? nick (state-chatter last-state))
+                          (equal? ip (state-ip last-state))
+                          (< (abs (- (state-timestamp last-state) sec)) 
+                             (get-timestamp-omit-interval)))
+                   '()
+                   (html:div
+                    :class "entry-header"
+                    (html:span :class "timestamp"
+                               (sys-strftime "%Y/%m/%d %T %Z" (get-systime sec)))
+                    (html:span :class "chatter" (html-escape-string nick))))
+                ,(html:a :class "permalink-anchor"
+                         :id #`"anchor-,anchor-string"
+                         :href permalink :name permalink :target "_parent"
+                         "#")
+                ,(html-format-entry text anchor-string @@dont-expand-url@@))
+              (make-state nick ip sec)))))
+
+(define (chaton-render-rss-1 entry last-state)
+  (receive (nick sec usec text ip) (decompose-entry entry)
+    (let* ([text-with-nick #`",|nick|: ,|text|"]
+           [anchor-string (make-anchor-string sec usec)]
+           [permalink (make-permalink sec anchor-string)]
+           [title (html-escape-string (if-let1 m (#/^[^\n]*/ text-with-nick)
+                                        (m 0)
+                                        text-with-nick))]
+           [desc (html-format-entry text-with-nick anchor-string #t)])
+      ;; NB: DESC can never have "]]>" in it, since the external text has
+      ;; gone through safe-text and all >'s in it are replaced by &gt's.
+      (values `("<item>\n"
+                "<title>" ,title "</title>\n"
+                "<link>" ,permalink "</link>\n"
+                "<description><![CDATA[" ,desc "]]></description>\n"
+                "<content:encoded><![CDATA[" ,desc "]]></content:encoded>\n"
+                "<pubDate>" ,(time->rfc822-date-string sec) ,"</pubDate>\n"
+                "<guid isPermaLink=\"true\">" ,permalink "</guid>\n"
+                "</item>\n")
+              (make-state nick ip sec)))))
+
+(define (decompose-entry entry)
+  (match-let1 (nick (sec usec) text . opt) entry
+    (values nick sec usec text (if (pair? opt) (car opt) #f))))
+
+(define (make-anchor-string sec usec) (format "entry-~x-~2,'0x" sec usec))
+
+(define (make-permalink sec anchor)
+  (build-path +archive-url+
+              (format "~a#~a"
+                      (sys-strftime "%Y/%m/%d" (get-systime sec))
+                      anchor)))
+
+(define (html-format-entry entry-text
+                           anchor-string
+                           :optional (dont-expand-url @@dont-expand-url@@))
+  (if (#/\n/ entry-text)
+    (html:pre :class "entry-multi" :id anchor-string
+              (safe-text entry-text #t))
+    (html:div :class "entry-single" :id anchor-string
+              (html:span (safe-text entry-text dont-expand-url)))))  
+
+(define *url-rx* #/https?:\/\/(\/\/[^\/?#\s]*)?([^?#\s\"]*(\?[^#\s\"]*)?(#[^\s\"]*)?)/)
+
+(define (safe-text text :optional (dont-expand-url @@dont-expand-url@@))
+  (let loop ([s text] [r '()])
+    (cond
+     [(string-null? s) (reverse r)]
+     [(*url-rx* s)
+      => (^(m)
+           (loop (m'after)
+                 `(,(render-url (m 0) dont-expand-url)
+                   ,((chaton-text-renderer) (html-escape-string (m'before)))
+                   ,@r)))]
+     [else (reverse (cons ((chaton-text-renderer) (html-escape-string s))
+                          r))])))
+
+(define (render-url url :optional (dont-expand-url @@dont-expand-url@@))
+  (if dont-expand-url
+    (render-url-default url)
+    (rxmatch-case url
+      [#/\.(?:jpg|gif|png)$/i () (render-url-image url)]
+      [#/^http:\/\/(\w{2,3}\.youtube\.com)\/watch\?v=([\w-]{1,12})/ (_ host vid)
+       (render-url-youtube url host vid)]
+      [#/^http:\/\/www\.nicovideo\.jp\/watch\/(\w{1,13})/ (_ vid)
+       (render-url-nicovideo url vid)]
+      [else (render-url-default url)])))
+
+(define (render-url-default url)
+  (html:a :href url :rel "nofollow" :class "link-default"
+          :onclick "window.open(this.href); return false;"
+          ((chaton-text-renderer) (html-escape-string url))))
+
+(define (render-url-image url)
+  (html:a :href url :rel "nofollow" :class "link-image hide-while-loading"
+          :onclick "window.open(this.href); return false;"
+          (html:img :src url :alt url :onload "checkImageSize(this);")))
+
+(define (render-url-youtube url host vid)
+  (html:iframe :title "YouTube video player"
+               :class "youtube-player"
+               :type "text/html"
+               :width "@@embed-youtube-width@@"
+               :height "@@embed-youtube-height@@"
+               :src #`"http://,|host|/embed/,|vid|"
+               :frameborder "0"
+               :allowFullScreen #t
+               :onload "scrollToBottom();"
+               (html:a :href url
+                       ((chaton-text-renderer) (html-escape-string url)))))
+
+(define (render-url-nicovideo url vid)
+  (html:iframe :width "312" :height "176"
+               :src #`"http://ext.nicovideo.jp/thumb/,|vid|"
+               :scrolling "no" :class "nicovideo"
+               :frameborder "0"
+               :onload "scrollToBottom();"
+               (html:a :href url
+                       ((chaton-text-renderer) (html-escape-string url)))))
+
+(define (time->rfc822-date-string seconds)
+  (date->string (time-utc->date (make <time> :second seconds)) "~a, ~e ~b ~Y ~X ~z"))
+
+(define (make-text-renderer/color-searchquery referer-src)
   (define is-url-chaton-search?
     ;; "@@httpd-url@@@@url-path@@s"
     (string->regexp
@@ -180,8 +311,9 @@
       ((is-url-google-search? url) query-solver-google)
       (else #f)))
   (define (get-queries)
-    (and-let* ((referer-orig (cgi-get-metavariable "HTTP_REFERER"))
-               (referer-sanitized (string-incomplete->complete referer-orig #f))
+    (and-let* ((_ referer-src)
+               ;; through if not escaped multibyte character in url
+               (referer-sanitized (string-incomplete->complete referer-src #f))
                (queries-solver (get-queries-solver referer-sanitized))
                (uri-parsed (receive r (uri-parse referer-sanitized) r))
                (uri-query (list-ref uri-parsed 5))
@@ -190,7 +322,7 @@
                (_ (not (null? queries-sanitized)))
                )
       queries-sanitized))
-  (define (make-render-text queries)
+  (define (make-renderer queries)
     (let* ((html-escaped-queries (map html-escape-string queries))
            (re (string->regexp
                  (string-join
@@ -199,151 +331,28 @@
                      (lambda (x y)
                        (< (string-length y) (string-length x))))
                    "|")))
+           ;; key: html-escaped-query, val: css-class-string
            (ht (make-hash-table 'string=?))
            )
-      (define (paint m)
-        (tree->string
-          (html:span
-            :class (string-append "csq-" (hash-table-get ht (m)))
-            (m))))
       ;; fill ht
       (let loop ((idx 0) (left html-escaped-queries))
         (unless (null? left)
-          (hash-table-put! ht (car left) (x->string idx))
+          (hash-table-put! ht (car left) #`"csq-,idx")
           (loop (+ 1 idx) (cdr left))))
       ;; return render
-      (lambda (text)
-        (regexp-replace-all re (html-escape-string text) paint))))
+      (lambda (html-escaped-text)
+        (regexp-replace-all
+          re
+          html-escaped-text
+          (lambda (m)
+            (tree->string (html:span :class (hash-table-get ht (m))
+                                     (m))))))))
 
   (or
     (and-let* ((queries (get-queries))
-               (render-text (make-render-text queries)))
-      (lambda (entry last-state)
-        (chaton-render-html-1 entry last-state render-text)))
-    chaton-render-html-1))
-
-(define (chaton-render-html-1 entry last-state :optional (render-text html-escape-string))
-  (receive (nick sec usec text ip) (decompose-entry entry)
-    (let* ([anchor-string (make-anchor-string sec usec)]
-           [permalink (make-permalink sec anchor-string)])
-      (values `(,(if (and (equal? nick (state-chatter last-state))
-                          (equal? ip (state-ip last-state))
-                          (< (abs (- (state-timestamp last-state) sec)) 
-                             (get-timestamp-omit-interval)))
-                   '()
-                   (html:div
-                    :class "entry-header"
-                    (html:span :class "timestamp"
-                               (sys-strftime "%Y/%m/%d %T %Z" (get-systime sec)))
-                    (html:span :class "chatter" (html-escape-string nick))))
-                ,(html:a :class "permalink-anchor"
-                         :id #`"anchor-,anchor-string"
-                         :href permalink :name permalink :target "_parent"
-                         "#")
-                ,(html-format-entry text anchor-string @@dont-expand-url@@ render-text))
-              (make-state nick ip sec)))))
-
-(define (chaton-render-rss-1 entry last-state)
-  (receive (nick sec usec text ip) (decompose-entry entry)
-    (let* ([text-with-nick #`",|nick|: ,|text|"]
-           [anchor-string (make-anchor-string sec usec)]
-           [permalink (make-permalink sec anchor-string)]
-           [title (html-escape-string (if-let1 m (#/^[^\n]*/ text-with-nick)
-                                        (m 0)
-                                        text-with-nick))]
-           [desc (html-format-entry text-with-nick anchor-string #t)])
-      ;; NB: DESC can never have "]]>" in it, since the external text has
-      ;; gone through safe-text and all >'s in it are replaced by &gt's.
-      (values `("<item>\n"
-                "<title>" ,title "</title>\n"
-                "<link>" ,permalink "</link>\n"
-                "<description><![CDATA[" ,desc "]]></description>\n"
-                "<content:encoded><![CDATA[" ,desc "]]></content:encoded>\n"
-                "<pubDate>" ,(time->rfc822-date-string sec) ,"</pubDate>\n"
-                "<guid isPermaLink=\"true\">" ,permalink "</guid>\n"
-                "</item>\n")
-              (make-state nick ip sec)))))
-
-(define (decompose-entry entry)
-  (match-let1 (nick (sec usec) text . opt) entry
-    (values nick sec usec text (if (pair? opt) (car opt) #f))))
-
-(define (make-anchor-string sec usec) (format "entry-~x-~2,'0x" sec usec))
-
-(define (make-permalink sec anchor)
-  (build-path +archive-url+
-              (format "~a#~a"
-                      (sys-strftime "%Y/%m/%d" (get-systime sec))
-                      anchor)))
-
-(define (html-format-entry entry-text
-                           anchor-string
-                           :optional (dont-expand-url @@dont-expand-url@@)
-                                     (render-text html-escape-string))
-  (if (#/\n/ entry-text)
-    (html:pre :class "entry-multi" :id anchor-string
-              (safe-text entry-text #t render-text))
-    (html:div :class "entry-single" :id anchor-string
-              (html:span (safe-text entry-text dont-expand-url render-text)))))  
-
-(define *url-rx* #/https?:\/\/(\/\/[^\/?#\s]*)?([^?#\s\"]*(\?[^#\s\"]*)?(#[^\s\"]*)?)/)
-
-(define (safe-text text :optional (dont-expand-url @@dont-expand-url@@)
-                                  (render-text html-escape-string))
-  (let loop ([s text] [r '()])
-    (cond
-     [(string-null? s) (reverse r)]
-     [(*url-rx* s)
-      => (^(m)
-           (loop (m'after)
-                 `(,(render-url (m 0) dont-expand-url)
-                   ,(render-text (m'before))
-                   ,@r)))]
-     [else (reverse (cons (render-text s) r))])))
-
-(define (render-url url :optional (dont-expand-url @@dont-expand-url@@))
-  (if dont-expand-url
-    (render-url-default url)
-    (rxmatch-case url
-      [#/\.(?:jpg|gif|png)$/i () (render-url-image url)]
-      [#/^http:\/\/(\w{2,3}\.youtube\.com)\/watch\?v=([\w-]{1,12})/ (_ host vid)
-       (render-url-youtube url host vid)]
-      [#/^http:\/\/www\.nicovideo\.jp\/watch\/(\w{1,13})/ (_ vid)
-       (render-url-nicovideo url vid)]
-      [else (render-url-default url)])))
-
-(define (render-url-default url)
-  (html:a :href url :rel "nofollow" :class "link-default"
-          :onclick "window.open(this.href); return false;"
-          (html-escape-string url)))
-
-(define (render-url-image url)
-  (html:a :href url :rel "nofollow" :class "link-image hide-while-loading"
-          :onclick "window.open(this.href); return false;"
-          (html:img :src url :alt url :onload "checkImageSize(this);")))
-
-(define (render-url-youtube url host vid)
-  (html:iframe :title "YouTube video player"
-               :class "youtube-player"
-               :type "text/html"
-               :width "@@embed-youtube-width@@"
-               :height "@@embed-youtube-height@@"
-               :src #`"http://,|host|/embed/,|vid|"
-               :frameborder "0"
-               :allowFullScreen #t
-               :onload "scrollToBottom();"
-               (html:a :href url (html-escape-string url))))
-
-(define (render-url-nicovideo url vid)
-  (html:iframe :width "312" :height "176"
-               :src #`"http://ext.nicovideo.jp/thumb/,|vid|"
-               :scrolling "no" :class "nicovideo"
-               :frameborder "0"
-               :onload "scrollToBottom();"
-               (html:a :href url (html-escape-string url))))
-
-(define (time->rfc822-date-string seconds)
-  (date->string (time-utc->date (make <time> :second seconds)) "~a, ~e ~b ~Y ~X ~z"))
+               (renderer (make-renderer queries)))
+      renderer)
+    identity))
 
 ;;;
 ;;;  Reading datafile
