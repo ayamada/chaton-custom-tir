@@ -61,15 +61,16 @@
                       (next (port-tell p)))))))))))))
 
 (define (emit-archfile y m d)
-  (let1 archfile (dpath y m d)
-    (make-page
-      y
-      m
-      d
-      (and-let* ((_ (file-exists? archfile))
-                 (idx (get-archfile-idx archfile y m d)))
-        (chaton-render-from-file archfile idx #f))
-      (file-is-symlink? archfile))))
+  (let* ((archfile (dpath y m d))
+         (renderer (if @@dont-color-searchquery-from-referer@@
+                     chaton-render-html-1
+                     (make-chaton-render-html-1/colorquery)))
+         (content (and-let* ((_ (file-exists? archfile))
+                             (idx (get-archfile-idx archfile y m d)))
+                    (chaton-render-from-file archfile idx #f
+                                             :renderer renderer)))
+         )
+    (make-page y m d content (file-is-symlink? archfile))))
 
 (define (make-page y m d content no-cache?)
   (let1 title (format "~a > Archives > ~a" *room* (ymd y m d))

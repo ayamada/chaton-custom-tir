@@ -11,6 +11,7 @@
   (use util.match)
   (use util.list)
   (use www.cgi)
+  (use rfc.uri)
   (use gauche.charconv)
   (use gauche.fcntl)
   (use gauche.sequence)
@@ -18,6 +19,7 @@
   (export chaton-render chaton-read-entries
           chaton-render-from-file
           chaton-render-html-1 chaton-render-rss-1
+          make-chaton-render-html-1/colorquery
           chaton-with-shared-locking chaton-with-exclusive-locking
 
           chaton-alist->stree
@@ -133,7 +135,94 @@
 (define (state-ip last-state)      (cadr last-state))
 (define (state-timestamp last-state) (caddr last-state))
 
-(define (chaton-render-html-1 entry last-state)
+(define (make-chaton-render-html-1/colorquery)
+  (define is-url-chaton-search?
+    ;; "@@httpd-url@@@@url-path@@s"
+    (string->regexp
+      (string-append
+        "^"
+        (regexp-quote "@@httpd-url@@@@url-path@@s"))))
+  (define (query-solver-chaton uri-query)
+    (cgi-get-parameter "q"
+                       (charconv-cgi-param
+                         (cgi-parse-parameters :query-string uri-query))
+                       :list #t))
+  (define (is-url-google-search? url)
+    ;; http://www.google.com/search?q=chaton+inurl:@@site-search-url@@
+    #t) ; TODO: more legit check
+  (define (query-solver-google uri-query)
+    ;; http://www.google.com/support/websearch/bin/answer.py?answer=136861
+    ;; http://www.googleguide.com/advanced_operators.html
+    (and-let* ((q (cgi-get-parameter
+                    "q" (cgi-parse-parameters :query-string uri-query)))
+               ;; it for if query was other than utf-8 string
+               (q (ces-convert q "*JP"))
+               ;; it for failed to ces-convert
+               (q (string-incomplete->complete q #f))
+               (qs (string-split q #/\s+/))
+               ;; pseudo-support inurl:
+               (qs (remove #/^inurl\:/ qs))
+               ;; pseudo-support -excludedword
+               (qs (remove #/^\-/ qs))
+               ;; pseudo-support *
+               (qs (remove (cute equal? "*" <>) qs))
+               ;; pseudo-support +
+               (qs (remove (cute equal? "+" <>) qs))
+               ;; pseudo-support OR
+               (qs (remove (cute equal? "OR" <>) qs))
+               ;; pseudo-support "quoted query"
+               (qs (map (cute regexp-replace-all #/\"/ <> "") qs))
+               )
+      qs))
+  (define (get-queries-solver url)
+    (cond
+      ((is-url-chaton-search? url) query-solver-chaton)
+      ((is-url-google-search? url) query-solver-google)
+      (else #f)))
+  (define (get-queries)
+    (and-let* ((referer-orig (cgi-get-metavariable "HTTP_REFERER"))
+               (referer-sanitized (string-incomplete->complete referer-orig #f))
+               (queries-solver (get-queries-solver referer-sanitized))
+               (uri-parsed (receive r (uri-parse referer-sanitized) r))
+               (uri-query (list-ref uri-parsed 5))
+               (queries-src (queries-solver uri-query))
+               (queries-sanitized (remove (cute equal? "" <>) queries-src))
+               (_ (not (null? queries-sanitized)))
+               )
+      queries-sanitized))
+  (define (make-render-text queries)
+    (let* ((html-escaped-queries (map html-escape-string queries))
+           (re (string->regexp
+                 (string-join
+                   (sort
+                     (map regexp-quote html-escaped-queries)
+                     (lambda (x y)
+                       (< (string-length y) (string-length x))))
+                   "|")))
+           (ht (make-hash-table 'string=?))
+           )
+      (define (paint m)
+        (tree->string
+          (html:span
+            :class (string-append "csq-" (hash-table-get ht (m)))
+            (m))))
+      ;; fill ht
+      (let loop ((idx 0) (left html-escaped-queries))
+        (unless (null? left)
+          (hash-table-put! ht (car left) (x->string idx))
+          (loop (+ 1 idx) (cdr left))))
+      ;; return render
+      (lambda (text)
+        (regexp-replace-all re (html-escape-string text) paint))))
+
+  (or
+    (and-let* ((queries (get-queries))
+               (render-text (make-render-text queries)))
+      (lambda (entry last-state)
+        (chaton-render-html-1 entry last-state render-text)))
+    chaton-render-html-1))
+
+(define (chaton-render-html-1 entry last-state :optional (render-text html-escape-string))
   (receive (nick sec usec text ip) (decompose-entry entry)
     (let* ([anchor-string (make-anchor-string sec usec)]
            [permalink (make-permalink sec anchor-string)])
@@ -151,7 +240,7 @@
                          :id #`"anchor-,anchor-string"
                          :href permalink :name permalink :target "_parent"
                          "#")
-                ,(html-format-entry text anchor-string))
+                ,(html-format-entry text anchor-string @@dont-expand-url@@ render-text))
               (make-state nick ip sec)))))
 
 (define (chaton-render-rss-1 entry last-state)
@@ -162,7 +251,7 @@
            [title (html-escape-string (if-let1 m (#/^[^\n]*/ text-with-nick)
                                         (m 0)
                                         text-with-nick))]
-           [desc (html-format-entry text-with-nick anchor-string)])
+           [desc (html-format-entry text-with-nick anchor-string #t)])
       ;; NB: DESC can never have "]]>" in it, since the external text has
       ;; gone through safe-text and all >'s in it are replaced by &gt's.
       (values `("<item>\n"
@@ -187,16 +276,20 @@
                       (sys-strftime "%Y/%m/%d" (get-systime sec))
                       anchor)))
 
-(define (html-format-entry entry-text anchor-string :optional (dont-expand-url @@dont-expand-url@@))
+(define (html-format-entry entry-text
+                           anchor-string
+                           :optional (dont-expand-url @@dont-expand-url@@)
+                                     (render-text html-escape-string))
   (if (#/\n/ entry-text)
     (html:pre :class "entry-multi" :id anchor-string
-              (safe-text entry-text #t))
+              (safe-text entry-text #t render-text))
     (html:div :class "entry-single" :id anchor-string
-              (html:span (safe-text entry-text dont-expand-url)))))  
+              (html:span (safe-text entry-text dont-expand-url render-text)))))  
 
 (define *url-rx* #/https?:\/\/(\/\/[^\/?#\s]*)?([^?#\s\"]*(\?[^#\s\"]*)?(#[^\s\"]*)?)/)
 
-(define (safe-text text :optional (dont-expand-url @@dont-expand-url@@))
+(define (safe-text text :optional (dont-expand-url @@dont-expand-url@@)
+                                  (render-text html-escape-string))
   (let loop ([s text] [r '()])
     (cond
      [(string-null? s) (reverse r)]
@@ -204,9 +297,9 @@
       => (^(m)
            (loop (m'after)
                  `(,(render-url (m 0) dont-expand-url)
-                   ,(html-escape-string (m'before))
+                   ,(render-text (m'before))
                    ,@r)))]
-     [else (reverse (cons (html-escape-string s) r))])))
+     [else (reverse (cons (render-text s) r))])))
 
 (define (render-url url :optional (dont-expand-url @@dont-expand-url@@))
   (if dont-expand-url

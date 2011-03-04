@@ -43,6 +43,7 @@
 -- rssに、部屋のアイコンを表示
 -- youtubeサムネイルをiframe版に
 -- メニュー項目のレイアウト変更
+-- refererを使った、検索文字列の色付け(Read Archive のみ)
 - その他微細な変更
 
 
@@ -52,6 +53,10 @@
 -- 画像、youtube、ニコ動のurlを展開するかどうか
 - (extra-css "")
 -- chaton.cssの末尾に追加される
+- (dont-color-searchquery-from-referer #f)
+-- chaton-browserで過去のログを見る際に、refererが、
+   chaton-searchもしくはgoogle(search.html)からの検索結果だった場合に、
+   そのクエリに応じてログに色付けを行う機能を使うか否か
 - (use-localtime #f)
 -- 日時をGMTで扱うかサーバのlocaltimeで扱うか
 - (timestamp-omit-interval (* 4 60))
@@ -112,10 +117,6 @@
 
 * TODO
 ** やる
-- chaton-browserに、pukiwiki等でよくある、refererによる検索語の色付け機能を追加
--- 無効にもできるように、conf設定を追加する事
---- 項目名は (dont-color-searchquery-from-referer #f)
--- とりあえず、google(search.html)とchaton-searchのクエリにだけ対応してればok
 - 「やらない」の項目に移動した、window.document.titleの反映がされない件、
   window.document.title自体が悪いんじゃなく、そこへ行く為の条件分岐か何かが
   悪い可能性が高いので、もうちょっと調べる
@@ -136,8 +137,7 @@
     - regexp+render-url:youtube
     - regexp+render-url:nicovideo
     - regexp+render-url:default
-    dont-expand-urlやimg-size-limit等は、この標準のurlフィルタ内にのみ
-    影響を及ぼす。
+    img-size-limit等は、この標準のurlフィルタ内にのみ影響を及ぼす。
 --- 問題点:
 ---- build-siteの時点でlambda式を手続きに変換してしまうと、
      それをchaton.scm等に埋め込めない。どうする？

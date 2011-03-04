@@ -184,6 +184,7 @@
     extra-css
     shebang-filter
     relay-url-prefix
+    dont-color-searchquery-from-referer
     ))
 (define *config-treat-as-integer-keys*
   '(timestamp-omit-interval

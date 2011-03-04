@@ -325,7 +325,7 @@
             :class "search-box"
             (html:form
               :action "@@httpd-url@@@@url-path@@s"
-              :method "post"
+              :method "get"
               :id "search-form"
               (html:input :type "hidden" :name "_mb" :value "日本語")
               (html:div "search words :")
