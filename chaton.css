@@ -64,13 +64,13 @@ youtube-player { margin: 3px; padding: 0; border: none; }
 iframe.nicovideo { margin: 3px; border: solid 1px #CCC; }
 
 /* NB: avoid to collision to entry-multi */
-span.csq-0 { background-color: #f77; color #000; }
-span.csq-1 { background-color: #7f7; color #000; }
+span.csq-0 { background-color: #f99; color #000; }
+span.csq-1 { background-color: #9f9; color #000; }
 span.csq-2 { background-color: #ccc; color #000; }
 span.csq-3 { background-color: #e7e; color #000; }
 span.csq-4 { background-color: #7ee; color #000; }
-span.csq-5 { background-color: #f77; color #000; }
-span.csq-6 { background-color: #7f7; color #000; }
+span.csq-5 { background-color: #f99; color #000; }
+span.csq-6 { background-color: #9f9; color #000; }
 span.csq-7 { background-color: #ccc; color #000; }
 span.csq-8 { background-color: #e7e; color #000; }
 span.csq-9 { background-color: #7ee; color #000; }
