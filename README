@@ -138,6 +138,7 @@
     - regexp+render-url:nicovideo
     - regexp+render-url:default
     img-size-limit等は、この標準のurlフィルタ内にのみ影響を及ぼす。
+---- 今気付いたが、優先順位＝リストでの出現順、でいいのでは？
 --- 問題点:
 ---- build-siteの時点でlambda式を手続きに変換してしまうと、
      それをchaton.scm等に埋め込めない。どうする？
