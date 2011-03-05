@@ -337,7 +337,7 @@
       ;; fill ht
       (let loop ((idx 0) (left html-escaped-queries))
         (unless (null? left)
-          (hash-table-put! ht (car left) #`"csq-,idx")
+          (hash-table-put! ht (car left) #`"csq-,(remainder idx 10)")
           (loop (+ 1 idx) (cdr left))))
       ;; return render
       (lambda (html-escaped-text)
