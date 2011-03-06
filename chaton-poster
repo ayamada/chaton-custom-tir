@@ -9,6 +9,7 @@
   (use util.list)
   (use text.html-lite)
   (use text.tree)
+  (use gauche.parameter)
   (use chaton)
   (export poster-main))
 (select-module chaton.poster)
@@ -16,12 +17,15 @@
 (define *limit* 2048)
 (define +sequence-old+ (build-path +docdir+ "var/seq"))
 
+(define return-seq (make-parameter -1))
+
 (define (poster-main args)
   (cgi-main (lambda (params)
-              (let ([nick (cgi-get-parameter "nick" params :default #f)]
-                    [text (cgi-get-parameter "text" params :default #f)])
-                (chaton-post nick text)
-                (emit-reply)))
+              (parameterize ((return-seq -1))
+                (let* ([nick (cgi-get-parameter "nick" params :default #f)]
+                       [text (cgi-get-parameter "text" params :default #f)])
+                  (chaton-post nick text)
+                  (emit-reply))))
             :on-error
             (and +show-stack-trace+
                  (lambda (e)
@@ -42,8 +46,12 @@
        :if-exists :append)
      (update-rss))))
 
-(define (emit-reply)                    ;dummy
-  (write-tree `(,(cgi-header) ,(html:html (html:head) (html:body)))))
+(define (emit-reply) ; return var/seq
+  (write-tree
+    `(,(cgi-header :content-type "text/plain"
+                   :pragma "no-cache"
+                   :cache-control "no-cache")
+      ,(x->string (return-seq)))))
 
 (define (update out nick text)
   (unless (or (string-null? nick) (string-null? text))
@@ -72,7 +80,9 @@
     (make-directory* (sys-dirname +sequence-file+))
     (with-output-to-file +sequence-file+ (cut write (+ cnt 1)) :atomic #t)
     (make-directory* (sys-dirname +sequence-old+))
-    (with-output-to-file +sequence-old+ (cut write (+ cnt 1)) :atomic #t)))
+    (with-output-to-file +sequence-old+ (cut write (+ cnt 1)) :atomic #t)
+    (return-seq (+ cnt 1))
+    ))
 
 (define (record-last-post-timestamp)
   ;; NB: Theoretically the value written may differ from the entry's timestamp,

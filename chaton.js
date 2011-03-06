@@ -10,7 +10,11 @@
 
 function post() {
   setNickCookie($F('post-remember'));
-  if ($F('post-nick') == '' || $F('post-text') == '') return;
+  if ($F('post-nick') == '' || $F('post-text') == '') {
+    messageMonitorStop();
+    updateMessageCount();
+    return;
+  }
   disablePost();
   new Ajax.Request("@@httpd-url@@@@url-path@@@@cgi-script@@",
     {
@@ -18,7 +22,7 @@ function post() {
         nick: $F('post-nick'), 
         text: $F('post-text')
       },
-      onSuccess : function (t) { enablePost(true); },
+      onSuccess : function (t) { enablePost(t); },
       onFailure : function (t) { enablePost(false); },
       onException : function (r, e) { enablePost(false); }
     });
@@ -44,8 +48,8 @@ function enablePost(clearp) {
   $('post-form').disabled = false;
   if (clearp) {
     $('post-text').clear();
-    currentMessageNum = viewedMessageNum = -1;
-    setTitle();
+    messageMonitorStop();
+    currentMessageNum = viewedMessageNum = parseInt(clearp.responseText);
   }
   $('post-submit').focus();
   $('post-text').focus();
@@ -83,6 +87,7 @@ var messageMonitorRunning = false;
 var messageMonitorContinue = false;
 var currentMessageNum = -1;
 var viewedMessageNum = -1;
+var countNum = -1;
 
 function setTitle() {
   if (messageMonitorContinue) {
@@ -96,39 +101,42 @@ function setTitle() {
 
 function messageMonitorRun() {
   messageMonitorContinue = true;
+  countNum = -1;
   setTitle();
   if (!messageMonitorRunning) {
     messageMonitorRunning = true;
-    currentMessageNum = viewedMessageNum = -1;
     fetchMessageCount();
   }
 }
 
 function messageMonitorStop() {
+  var c = messageMonitorContinue;
   messageMonitorContinue = false;
-  currentMessageNum = viewedMessageNum = -1;
-  setTitle();
+  countNum = -1;
+  if (c) { setTitle(); }
 }
 
-function fetchMessageCount() {
-  if (!messageMonitorContinue) {
-    messageMonitorRunning = false;
-    return;
-  }
+function _callMessageCount(cb, cbfail) {
   new Ajax.Request("@@httpd-url@@@@url-path@@var/seq?" + (new Date).getTime(),
     {
       method: 'get',
       evalJSON: false,
-      onSuccess: fetchMessageCountCB,
-      onFailure: function (r,e) { setTimeout(fetchMessageCount, 150000); }
+      onSuccess: cb,
+      onFailure: cbfail
     });
+}
+function fetchMessageCount() {
+  if (currentMessageNum == -1 || messageMonitorContinue) {
+    _callMessageCount(
+      fetchMessageCountCB,
+      function (r,e) { setTimeout(fetchMessageCount, 150000); } // penalty
+    );
+  } else {
+    messageMonitorRunning = false;
+  }
 }
 
 function fetchMessageCountCB(t) {
-  if (!messageMonitorContinue) {
-    messageMonitorRunning = false;
-    return;
-  }
   var cnt = parseInt(t.responseText);
   if (currentMessageNum < 0 || currentMessageNum > cnt) {
     currentMessageNum = viewedMessageNum = cnt;
@@ -136,16 +144,31 @@ function fetchMessageCountCB(t) {
     currentMessageNum = cnt;
   }
   setTitle();
-  setTimeout(fetchMessageCount, 15000);
+  setTimeout(fetchMessageCount, 15000 + (100 * countNum)); // slow down
+}
+
+function updateMessageCount() {
+  _callMessageCount(
+    function (t) { currentMessageNum = viewedMessageNum = parseInt(t.responseText); },
+    function (r,e) { return; }
+  );
+}
+
+function watchCount() {
+  countNum++;
+  if (!messageMonitorContinue && 5 <= countNum) { messageMonitorRun(); }
+  setTimeout(watchCount, 60*1000);
 }
 
 // Initialization -------------------------------------
 function initMainBody(iframesrc) {
   $('view-frame').src = iframesrc; // for inhibit to cache to iframe
   $('post-text').observe('keypress', textKey);
-  $('the-body').onmouseover = function () { messageMonitorStop(); }
-  $('the-body').onmouseout  = function () { messageMonitorRun(); }
+  $('the-body').onmouseover = messageMonitorStop;
+  $('the-body').onmouseout  = messageMonitorRun;
   setNickname();
+  fetchMessageCount();
+  watchCount();
 }
 
 //=================================================================
@@ -200,8 +223,7 @@ function insertContent(json, cid) {
     if ('@@dont-show-connect-num@@' == '#f') {
         showStatus('Connected ('+json.nc+' user'+(json.nc>1?'s':'')+' chatting)',
                    'status-ok');
-    }
-    else {
+    } else {
         showStatus('Connected', 'status-ok');
     }
     need_scroll = true;
