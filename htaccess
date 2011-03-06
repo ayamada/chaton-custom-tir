@@ -28,14 +28,20 @@
 
 <Files "var/seq">
   ForceType text/plain
+  Header set Pragma: no-cache
+  Header set Cache-Control: no-cache
 </Files>
 
 <Files "var/status.scm">
   ForceType text/plain
+  Header set Pragma: no-cache
+  Header set Cache-Control: no-cache
 </Files>
 
 <Files "var/status.js">
   ForceType application/json
+  Header set Pragma: no-cache
+  Header set Cache-Control: no-cache
 </Files>
 
 <Files *.html>
