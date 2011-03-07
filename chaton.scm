@@ -466,6 +466,11 @@
                 (+ (sys-time) max-age-epoch))
     ))
 
+;; this binding is for test case
+(let1 sym (string->symbol (string-append "@@extra-script" "-in-chaton@@"))
+  (eval `(define ,sym #f) (current-module)))
+
+;; implant script from conf file
 @@extra-script-in-chaton@@
 
 ;; This feature should be built-in!
