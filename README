@@ -96,6 +96,12 @@
 - (relay-url-prefix #f)
 -- cometサーバをproxy/delegateする場合に、そのurlのprefixを指定する。
    httpd-url同様、末尾には「/」はつけない方がよい。
+- (extra-script-in-chaton #f)
+-- ここに記述したリストは、コードとして、chaton.scmの末尾の方に埋め込まれる。
+   (モジュール名は「chaton」になる)
+   このリストは、write/read invarianceの保たれたデータのみで構築する事。
+   (既に解釈済の手続き等は含む事ができない)
+   もし他の設定項目の値等を含めたい場合は、quasiquoteとunquoteを使うとよい。
 
 
 
@@ -128,30 +134,32 @@
 -- conf項目名を決める事
 --- (url-filters #f)
     #fもしくはリストを指定する。
-    #fが指定された場合は、元々のChatonのurlフィルタ互換動作する定義がなされる。
-    リストの各要素は、以下のようなcons cellとする。
-    '(優先度数値 . (regexp 一引数の手続き))
-    優先度数値の高い順に、以下の操作が行われる。
-    ログ中にurlが出現するとregexpにかけられ、もしマッチしたなら
-    マッチオブジェクトが一引数の手続きに渡される。
-    この手続きは、html treeもしくは#fを返す事。
-    もし#fが返された場合は、
+    #fが指定された場合は、後述のデフォルト定義がなされる。
+    リストの各要素は、一引数の手続きとする。
+    リストの順に、以下の操作が行われる。
+    ログ中にurlが出現すると手続きに渡されるので、手続きは
+    html treeもしくは#fを返す事。
+    html treeが返された場合は、それがurlの代わりに埋め込まれる。
+    #fが返された場合は、url-filtersの次の要素が試される。
+    最後まで#fだった場合は、url文字列はタグ化されずにそのまま埋め込まれる。
     この設定の為に、標準のurlフィルタが以下の束縛名で提供される。
-    - regexp+render-url:image
-    - regexp+render-url:youtube
-    - regexp+render-url:nicovideo
-    - regexp+render-url:default
-    img-size-limit等は、この標準のurlフィルタ内にのみ影響を及ぼす。
----- 今気付いたが、優先順位＝リストでの出現順、でいいのでは？
---- 問題点:
----- build-siteの時点でlambda式を手続きに変換してしまうと、
-     それをchaton.scm等に埋め込めない。どうする？
------ しかし、quoteした場合は、confの環境が持ち込めない
-      (useしたモジュール情報やdefineした内容が持ち込めない)
----- 考えた結果、更にconf項目を追加し、以下のような実装とする
------ (embed-code S式) で指定したS式は、chaton.scm内に埋め込まれる。
-      ここでurlフィルタを定義させる。必要ならこの中でモジュールもuseさせる。
-      confでdefineした値を埋め込みたい時は、quasiquote/unquoteで埋め込む。
+    - url-filter:image
+    - url-filter:youtube
+    - url-filter:nicovideo
+    - url-filter:default
+    これらの実体は、chatonモジュール(chaton.scm)内にある。
+    新たにurlフィルタを追加する場合は、extra-script-in-chatonを利用して、
+    urlフィルタを定義した後、url-filtersを構築する事。
+    デフォルトの設定は以下の通り。
+    (url-filters '(url-filter:image
+                   url-filter:youtube
+                   url-filter:nicovideo
+                   url-filter:default))
+-- urlフィルタ自体については、これでいいと思うが、
+   urlだけでなく、特定の文字列に対するフィルタも作りたいなら、
+   そっちの枠組を作ってから、その中でurlフィルタも実現した方がいい気はする。
+   汎用文字列フィルタを使う？
+--- もうちょっと考える。
 ** あとまわし
 - githubに保存する際に、オリジナルと改変部分とでブランチ変更するの忘れてたので、このままではrebaseできない。なんとかすること
 -- このままでもrebaseできるなら不要。できる？

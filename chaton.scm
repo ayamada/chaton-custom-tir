@@ -440,9 +440,11 @@
           (cond
             ((not @@use-chaton-mobile@@) #f)
             (mobile-mode?
-              (html:a :href "@@httpd-url@@@@url-path@@?c=m&mode=chaton" "Chaton mode"))
+              (html:a :href "@@httpd-url@@@@url-path@@?c=m&mode=chaton"
+                      "Chaton mode"))
             (else
-              (html:a :href "@@httpd-url@@@@url-path@@?c=m&mode=mobile" "Mobile mode")))
+              (html:a :href "@@httpd-url@@@@url-path@@?c=m&mode=mobile"
+                      "Mobile mode")))
           (if @@use-internal-search@@
             (html:a :href "@@httpd-url@@@@url-path@@s" "Search")
             (html:a :href "@@httpd-url@@@@url-path@@search.html" "Search"))
@@ -463,6 +465,8 @@
                 0
                 (+ (sys-time) max-age-epoch))
     ))
+
+@@extra-script-in-chaton@@
 
 ;; This feature should be built-in!
 
