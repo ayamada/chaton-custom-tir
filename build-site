@@ -38,6 +38,7 @@
                                (assoc-ref config 'httpd-url)
                                ":"
                                (x->string (assoc-ref config 'comet-port))))]
+         [extra-script-in-chaton/sexpr (write-to-string (assoc-ref config 'extra-script-in-chaton))]
          [xconfig `((comet-script . ,comet-script) (cgi-script . ,cgi-script)
                     (room-name/escd . ,room-name/escd)
                     (room-description/escd . ,room-description/escd)
@@ -45,6 +46,7 @@
                     (extra-menu-html-list/escd . ,extra-menu-html-list/escd)
                     (htaccess-auth . ,(htaccess-auth config))
                     (comet-url-prefix . ,comet-url-prefix)
+                    (extra-script-in-chaton/sexpr . ,extra-script-in-chaton/sexpr)
                     ,@config)])
     (ensure-files-and-directories bindir docdir datadir)
     (receive (nconf chaton-js-update?)

@@ -471,7 +471,7 @@
   (eval `(define ,sym #f) (current-module)))
 
 ;; implant script from conf file
-@@extra-script-in-chaton@@
+@@extra-script-in-chaton/sexpr@@
 
 ;; This feature should be built-in!
 
