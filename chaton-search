@@ -55,7 +55,8 @@
 (define (queries->regexps queries)
   (map
     (lambda (query)
-      (string->regexp (regexp-quote query)))
+      (string->regexp
+        #`"(?i:,(regexp-quote query))"))
     queries))
 
 
