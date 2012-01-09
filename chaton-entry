@@ -83,8 +83,29 @@
                    :cache-control "no-cache"
                    )
       ,(the-page cid))
-    `(,(cgi-header :status "503" :content-type "text/plain; charset=utf-8")
-      "Service Temporarily Unavailable")))
+    `(,(cgi-header :status "503"
+                   :content-type "text/html; charset=utf-8"
+                   :pragma "no-cache"
+                   :cache-control "no-cache"
+                   )
+      ,(the-503 cid))))
+
+(define (the-503 cid)
+  (html:html
+   (html:head
+    (html:title "Chaton " (html-escape-string @@room-name/escd@@))
+    (html:link :href "@@httpd-url@@@@url-path@@chaton.css" :rel "Stylesheet"
+               :type "text/css")
+    (html:link :href "@@httpd-url@@@@url-path@@var/index.rdf" :rel "Alternate" :type "application/rss+xml")
+    (html:script :src "@@prototype-url@@" :type "text/javascript")
+    (html:script :src "@@httpd-url@@@@url-path@@@@chaton-js@@"
+                 :type "text/javascript"))
+   (html:body :id "the-body"
+    (html:h1 "Service Temporarily Unavailable")
+    (if @@use-chaton-mobile@@
+      (html:a :href "@@httpd-url@@@@url-path@@?c=m&mode=mobile"
+              "Mobile mode")
+      '()))))
 
 (define (the-page cid)
   (html:html
