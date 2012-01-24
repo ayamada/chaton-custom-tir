@@ -1,0 +1,8 @@
+/bin/
+/*.conf
+!/sample.conf
+/rooms
+/test.log
+/test.record
+/tests/@@server-data-dir@@lock
+/tests/data.o/
