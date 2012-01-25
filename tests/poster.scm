@@ -6,6 +6,7 @@
 
 (test-start "poster")
 
+(load "../build-site")
 (add-load-path "..")
 (load "../chaton-poster")
 (set! main #f)                          ;avoid exection of script main

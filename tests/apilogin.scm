@@ -5,6 +5,7 @@
 (use gauche.test)
 (use text.tree)
 
+(load "../build-site")
 (add-load-path "..")
 
 (test-start "apilogin")

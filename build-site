@@ -9,6 +9,10 @@
 (use file.util)
 (use file.filter)
 
+;; for make check
+(define-module chaton
+  (define |@@extra-script-in-chaton/sexpr@@| #f))
+
 (define (main args)
   (match (cdr args)
     [(config) (do-build (load-config config))]

@@ -4,6 +4,7 @@
 
 (use gauche.test)
 
+(load "../build-site")
 (add-load-path "..")
 
 (test-start "viewer")
