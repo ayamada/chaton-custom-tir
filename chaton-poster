@@ -1,9 +1,6 @@
 #!/usr/bin/env gosh
 
 (add-load-path "@@server-data-dir@@")
-;; for make check
-(define-module chaton
-  (define |@@extra-script-in-chaton/sexpr@@| #f))
 
 (define-module chaton.poster
   (use www.cgi)

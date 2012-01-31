@@ -471,7 +471,8 @@
   (eval `(define ,sym #f) (current-module)))
 
 ;; implant script from conf file
-@@extra-script-in-chaton/sexpr@@
+(guard (e (else #f))
+  (eval '@@extra-script-in-chaton/sexpr@@ (current-module)))
 
 ;; This feature should be built-in!
 
