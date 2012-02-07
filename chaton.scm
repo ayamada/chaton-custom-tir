@@ -325,19 +325,25 @@
   (define (make-renderer queries)
     (let* ((html-escaped-queries (map html-escape-string queries))
            (re (string->regexp
-                 (string-join
-                   (sort
-                     (map regexp-quote html-escaped-queries)
-                     (lambda (x y)
-                       (< (string-length y) (string-length x))))
-                   "|")))
+                 (string-append
+                   "(?i:"
+                   (string-join
+                     (sort
+                       (map regexp-quote html-escaped-queries)
+                       (lambda (x y)
+                         (< (string-length y) (string-length x))))
+                     "|")
+                   ")"
+                   )))
            ;; key: html-escaped-query, val: css-class-string
            (ht (make-hash-table 'string=?))
            )
       ;; fill ht
       (let loop ((idx 0) (left html-escaped-queries))
         (unless (null? left)
-          (hash-table-put! ht (car left) #`"csq-,(remainder idx 10)")
+          (hash-table-put! ht
+                           (string-downcase (car left))
+                           #`"csq-,(remainder idx 10)")
           (loop (+ 1 idx) (cdr left))))
       ;; return render
       (lambda (html-escaped-text)
@@ -345,7 +351,8 @@
           re
           html-escaped-text
           (lambda (m)
-            (tree->string (html:span :class (hash-table-get ht (m))
+            (tree->string (html:span :class (hash-table-get
+                                              ht (string-downcase (m)))
                                      (m))))))))
 
   (or
